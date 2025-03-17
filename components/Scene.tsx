@@ -3,6 +3,7 @@ import { OrbitControls, useTexture, PerspectiveCamera, Environment, Float, Text,
 import { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
+import SimpleSnow from './SimpleSnow';
 
 // Custom shader for the fluid effect
 const fluidShader = {
@@ -463,6 +464,7 @@ const snowShader = {
     attribute float offset;
     
     varying vec3 vColor;
+    varying float vAlpha;
     
     void main() {
       // Create motion with different speeds for each particle
@@ -470,33 +472,52 @@ const snowShader = {
       
       // Snow falling with wind effect
       float time = uTime * speed * uSpeed;
-      pos.y = mod(pos.y - time, 20.0) - 10.0;
+      pos.y = mod(pos.y - time, 30.0) - 10.0;
       
-      // Add some wind motion
-      pos.x += sin(time * 0.1 + offset) * 0.5;
-      pos.z += cos(time * 0.15 + offset) * 0.5;
+      // Add some wind motion - more realistic swaying
+      pos.x += sin(time * 0.1 + offset) * 1.0;
+      pos.z += cos(time * 0.15 + offset) * 1.0;
       
-      // Add variation to snow color
-      vColor = vec3(0.95 + sin(offset) * 0.05);
+      // Add subtle spin to some flakes
+      pos.x += sin(time * 0.5 + offset * 10.0) * 0.1;
+      pos.z += cos(time * 0.5 + offset * 10.0) * 0.1;
       
-      // Perspective point size
-      vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-      gl_PointSize = size * uSize * (100.0 / -mvPosition.z);
-      gl_Position = projectionMatrix * mvPosition;
+      // Calculate view distance for size and alpha adjustments
+      vec4 modelViewPosition = modelViewMatrix * vec4(pos, 1.0);
+      float dist = length(modelViewPosition.xyz);
+      
+      // Adjust alpha based on distance - closer particles are more visible
+      vAlpha = smoothstep(60.0, 10.0, dist) * 0.8 + 0.2;
+      
+      // Color variation with subtle blue tint and sparkle
+      float brightness = 0.95 + sin(offset) * 0.05;
+      vColor = vec3(brightness, brightness + 0.02, brightness + 0.05);
+      
+      // Adjust size based on distance - closer particles appear larger
+      float sizeAdjust = mix(1.0, 2.0, smoothstep(30.0, 5.0, dist));
+      gl_PointSize = size * uSize * sizeAdjust * (100.0 / -modelViewPosition.z);
+      
+      gl_Position = projectionMatrix * modelViewPosition;
     }
   `,
   fragmentShader: `
     varying vec3 vColor;
+    varying float vAlpha;
     
     void main() {
-      // Create circular snow particles
+      // Create realistic snowflake particles with soft edges
       float r = distance(gl_PointCoord, vec2(0.5));
       if (r > 0.5) discard;
       
-      // Soften edges
-      float opacity = 1.0 - smoothstep(0.3, 0.5, r);
+      // Soften edges and add internal texture
+      float center = smoothstep(0.5, 0.1, r);
+      float alpha = (0.5 * center + 0.5) * vAlpha;
       
-      gl_FragColor = vec4(vColor, opacity);
+      // Add sparkle effect
+      float sparkle = center * center * 0.9;
+      vec3 finalColor = vColor * (1.0 + sparkle * 0.2);
+      
+      gl_FragColor = vec4(finalColor, alpha);
     }
   `
 };
@@ -543,25 +564,26 @@ const Snow = () => {
   const materialRef = useRef<THREE.ShaderMaterial>(null!);
   
   // Generate snow particles
-  const particleCount = 2000;
+  const particleCount = 5000; // Increased particle count for more snow
   const positions = new Float32Array(particleCount * 3);
   const sizes = new Float32Array(particleCount);
   const speeds = new Float32Array(particleCount);
   const offsets = new Float32Array(particleCount);
   
   useEffect(() => {
-    // Initialize particles in a reasonable area around the camera
+    // Initialize particles in a reasonable area around the camera's view
     for (let i = 0; i < particleCount; i++) {
-      // Position
-      positions[i * 3] = (Math.random() - 0.5) * 40; // x
-      positions[i * 3 + 1] = Math.random() * 20 - 5; // y - higher up for more visible snow
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 40; // z
+      // Position particles in a large area, but concentrated more where the camera is looking
+      // Based on camera position at (32.19, -1.37, -31.22) looking toward (0, 0, 0)
+      positions[i * 3] = (Math.random() - 0.5) * 80 + 15; // x - shifted toward camera x position
+      positions[i * 3 + 1] = Math.random() * 30 - 5; // y - higher up for longer falling effect
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 80 - 15; // z - shifted toward camera z position
       
-      // Size variation
-      sizes[i] = Math.random() * 0.8 + 0.2;
+      // Size variation - some larger flakes
+      sizes[i] = Math.random() * 1.0 + 0.2;
       
-      // Speed variation
-      speeds[i] = Math.random() * 0.8 + 0.2;
+      // Speed variation - slower descent for a gentle snowfall
+      speeds[i] = Math.random() * 0.5 + 0.2;
       
       // Random offset for variation
       offsets[i] = Math.random() * Math.PI * 2;
@@ -570,7 +592,7 @@ const Snow = () => {
   
   useFrame(({ clock }) => {
     if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value = clock.getElapsedTime();
+      materialRef.current.uniforms.uTime.value = clock.getElapsedTime() * 0.5; // Slowed down for gentler effect
     }
   });
 
@@ -608,7 +630,11 @@ const Snow = () => {
       </bufferGeometry>
       <shaderMaterial
         ref={materialRef}
-        uniforms={snowShader.uniforms}
+        uniforms={{
+          uTime: { value: 0 },
+          uSize: { value: 0.3 }, // Increased size for better visibility
+          uSpeed: { value: 0.3 }, // Decreased speed for softer fall
+        }}
         vertexShader={snowShader.vertexShader}
         fragmentShader={snowShader.fragmentShader}
         transparent={true}
@@ -678,29 +704,44 @@ const Igloo = () => {
   );
 };
 
-// Custom camera with gentle floating animation
+// Camera with more dramatic floating motion
 const FloatingCamera = () => {
   const { camera } = useThree();
-  const cameraRef = useRef(camera);
   
-  // Set initial camera position
+  // Store the initial camera position for reference
+  const initialPosition = useRef(new THREE.Vector3());
+  
   useEffect(() => {
-    // Adjust these values to change camera position
-    camera.position.set(20, 8, 15); // Position camera at a different angle
-    camera.lookAt(0, 0, 0); // Look at the center where the igloo is
+    // Set initial camera position
+    camera.position.set(32.19, -1.37, -31.22);
+    initialPosition.current.copy(camera.position);
   }, [camera]);
   
-  // Gentle floating animation
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+    const time = clock.getElapsedTime();
     
-    // Very subtle floating motion
-    camera.position.y = 8 + Math.sin(t * 0.2) * 0.15;
-    camera.position.x = 12 + Math.sin(t * 0.15) * 0.1;
-    camera.position.z = 15 + Math.cos(t * 0.1) * 0.1;
+    // Much faster and more dramatic camera movement
+    const xMovement = Math.sin(time * 0.8) * 0.15;   // Fast side-to-side
+    const yMovement = Math.sin(time * 0.7) * 0.12;   // Fast up-down
+    const zMovement = Math.cos(time * 0.5) * 0.13;   // Fast forward-back
     
-    // Always look at the igloo
-    camera.lookAt(0, 0, 0);
+    // Apply the movement relative to the initial position
+    camera.position.x = initialPosition.current.x + xMovement;
+    camera.position.y = initialPosition.current.y + yMovement;
+    camera.position.z = initialPosition.current.z + zMovement;
+    
+    // More dramatic rotation movement
+    const lookXOffset = Math.sin(time * 0.5) * 0.5;   // Wider angle shifts
+    const lookYOffset = Math.cos(time * 0.6) * 0.4;   // Wider angle shifts
+    
+    // Create a look target with more dramatic motion
+    const lookTarget = new THREE.Vector3(
+      lookXOffset,
+      lookYOffset,
+      0
+    );
+    
+    camera.lookAt(lookTarget);
   });
   
   return null;
@@ -763,7 +804,7 @@ function Scene() {
           position: 'relative',
           zIndex: 0
         }}
-        camera={{ position: [12, 8, 15], fov: 45 }}
+        camera={{ position: [32.19, -1.37, -31.22], fov: 45 }}
         dpr={[1, 2]}
         gl={{ 
           antialias: true,
@@ -794,11 +835,10 @@ function Scene() {
         />
         <directionalLight intensity={0.3} position={[-10, -5, 5]} color="#e0e0ff" />
         
-        {/* Debug orbit controls */}
-        <OrbitDebugger />
-        
-        {/* Comment out the FloatingCamera while testing with OrbitControls */}
-        {/* <FloatingCamera /> */}
+        {/* Use FloatingCamera instead of OrbitDebugger */}
+        <FloatingCamera />
+        {/* Comment out the orbit debugger */}
+        {/* <OrbitDebugger /> */}
         
         {/* Mountain landscape from GLTF */}
         <MountainLandscape />
@@ -808,8 +848,8 @@ function Scene() {
           <Igloo />
         </group>
         
-        {/* Snow particles */}
-        <Snow />
+        {/* New simple snow component */}
+        <SimpleSnow />
         
         {/* Environment settings */}
         <Fog />
