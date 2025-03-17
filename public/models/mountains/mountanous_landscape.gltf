@@ -1,0 +1,541 @@
+{
+	"asset":
+	{
+		"version": "2.0",
+		"generator": "Unreal Engine 5.4.4"
+	},
+	"scene": 0,
+	"accessors": [
+		{
+			"bufferView": 0,
+			"count": 69645,
+			"type": "SCALAR",
+			"componentType": 5123
+		},
+		{
+			"bufferView": 1,
+			"count": 11784,
+			"type": "VEC3",
+			"componentType": 5126,
+			"min": [ -482.287598, -31.2055435, -298.317352 ],
+			"max": [ 482.287201, 77.0879517, 298.317291 ]
+		},
+		{
+			"bufferView": 2,
+			"count": 11784,
+			"type": "VEC3",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 3,
+			"count": 11784,
+			"type": "VEC4",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 4,
+			"count": 11784,
+			"type": "VEC2",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 5,
+			"count": 11784,
+			"type": "VEC2",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 6,
+			"count": 11784,
+			"type": "VEC2",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 7,
+			"count": 23619,
+			"type": "SCALAR",
+			"componentType": 5123
+		},
+		{
+			"bufferView": 8,
+			"count": 4043,
+			"type": "VEC3",
+			"componentType": 5126,
+			"min": [ -288.306366, -3.1970551, -220.796707 ],
+			"max": [ 288.306366, 49.0794601, 220.796753 ]
+		},
+		{
+			"bufferView": 9,
+			"count": 4043,
+			"type": "VEC3",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 10,
+			"count": 4043,
+			"type": "VEC4",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 11,
+			"count": 4043,
+			"type": "VEC2",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 12,
+			"count": 4043,
+			"type": "VEC2",
+			"componentType": 5126
+		},
+		{
+			"bufferView": 13,
+			"count": 4043,
+			"type": "VEC2",
+			"componentType": 5126
+		}
+	],
+	"buffers": [
+		{
+			"uri": "mountanous_landscape.bin",
+			"byteLength": 1199460
+		}
+	],
+	"bufferViews": [
+		{
+			"buffer": 0,
+			"byteLength": 139290,
+			"target": 34963
+		},
+		{
+			"buffer": 0,
+			"byteLength": 141408,
+			"byteOffset": 139292,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 141408,
+			"byteOffset": 280700,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 188544,
+			"byteOffset": 422108,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 94272,
+			"byteOffset": 610652,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 94272,
+			"byteOffset": 704924,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 94272,
+			"byteOffset": 799196,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 47238,
+			"byteOffset": 893468,
+			"target": 34963
+		},
+		{
+			"buffer": 0,
+			"byteLength": 48516,
+			"byteOffset": 940708,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 48516,
+			"byteOffset": 989224,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 64688,
+			"byteOffset": 1037740,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 32344,
+			"byteOffset": 1102428,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 32344,
+			"byteOffset": 1134772,
+			"target": 34962
+		},
+		{
+			"buffer": 0,
+			"byteLength": 32344,
+			"byteOffset": 1167116,
+			"target": 34962
+		}
+	],
+	"images": [
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter_BaseColor.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter_Normal.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter3_BaseColor.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter3_Normal.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter4_BaseColor.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter4_Normal.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_5_winter_BaseColor.png"
+		},
+		{
+			"uri": "pr_background_mountain_a_M_winter_pr_background_mountain_a_5_winter_Normal.png"
+		}
+	],
+	"materials": [
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter",
+			"pbrMetallicRoughness":
+			{
+				"baseColorTexture":
+				{
+					"index": 0,
+					"texCoord": 1,
+					"extensions":
+					{
+						"KHR_texture_transform":
+						{
+							"offset": [ -0.516475379, -0.166813254 ],
+							"scale": [ 1.51647544, 2.40164185 ]
+						}
+					}
+				},
+				"metallicFactor": 0.200000018,
+				"roughnessFactor": 0.698039234
+			},
+			"normalTexture":
+			{
+				"index": 1,
+				"texCoord": 1,
+				"extensions":
+				{
+					"KHR_texture_transform":
+					{
+						"offset": [ -0.516475379, -0.166813254 ],
+						"scale": [ 1.51647544, 2.40164185 ]
+					}
+				}
+			},
+			"extensions":
+			{
+				"KHR_materials_specular":
+				{
+					"specularFactor": 0.200000018
+				}
+			}
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter3",
+			"pbrMetallicRoughness":
+			{
+				"baseColorTexture":
+				{
+					"index": 2,
+					"texCoord": 1,
+					"extensions":
+					{
+						"KHR_texture_transform":
+						{
+							"offset": [ -0.516475379, -0.166813254 ],
+							"scale": [ 1.51647544, 2.40164185 ]
+						}
+					}
+				},
+				"metallicFactor": 0.200000018,
+				"roughnessFactor": 0.698039234
+			},
+			"normalTexture":
+			{
+				"index": 3,
+				"texCoord": 1,
+				"extensions":
+				{
+					"KHR_texture_transform":
+					{
+						"offset": [ -0.516475379, -0.166813254 ],
+						"scale": [ 1.51647544, 2.40164185 ]
+					}
+				}
+			},
+			"extensions":
+			{
+				"KHR_materials_specular":
+				{
+					"specularFactor": 0.200000018
+				}
+			}
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter4",
+			"pbrMetallicRoughness":
+			{
+				"baseColorTexture":
+				{
+					"index": 4,
+					"texCoord": 1,
+					"extensions":
+					{
+						"KHR_texture_transform":
+						{
+							"offset": [ -0.516475379, -0.166813254 ],
+							"scale": [ 1.51647544, 2.40164185 ]
+						}
+					}
+				},
+				"metallicFactor": 0.200000018,
+				"roughnessFactor": 0.698039234
+			},
+			"normalTexture":
+			{
+				"index": 5,
+				"texCoord": 1,
+				"extensions":
+				{
+					"KHR_texture_transform":
+					{
+						"offset": [ -0.516475379, -0.166813254 ],
+						"scale": [ 1.51647544, 2.40164185 ]
+					}
+				}
+			},
+			"extensions":
+			{
+				"KHR_materials_specular":
+				{
+					"specularFactor": 0.200000018
+				}
+			}
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_5_winter",
+			"pbrMetallicRoughness":
+			{
+				"baseColorTexture":
+				{
+					"index": 6,
+					"texCoord": 1,
+					"extensions":
+					{
+						"KHR_texture_transform":
+						{
+							"offset": [ -0.179414988, -1.12581706 ],
+							"scale": [ 2.56280303, 3.34640527 ]
+						}
+					}
+				},
+				"metallicFactor": 0.200000018,
+				"roughnessFactor": 0.698039234
+			},
+			"normalTexture":
+			{
+				"index": 7,
+				"texCoord": 1,
+				"extensions":
+				{
+					"KHR_texture_transform":
+					{
+						"offset": [ -0.179414988, -1.12581706 ],
+						"scale": [ 2.56280303, 3.34640527 ]
+					}
+				}
+			},
+			"extensions":
+			{
+				"KHR_materials_specular":
+				{
+					"specularFactor": 0.200000018
+				}
+			}
+		}
+	],
+	"meshes": [
+		{
+			"name": "pr_background_mountain_a_1_winter",
+			"primitives": [
+				{
+					"attributes":
+					{
+						"POSITION": 1,
+						"NORMAL": 2,
+						"TANGENT": 3,
+						"TEXCOORD_0": 4,
+						"TEXCOORD_1": 5,
+						"TEXCOORD_2": 6
+					},
+					"indices": 0,
+					"material": 0
+				}
+			]
+		},
+		{
+			"name": "pr_background_mountain_a_1_winter3",
+			"primitives": [
+				{
+					"attributes":
+					{
+						"POSITION": 1,
+						"NORMAL": 2,
+						"TANGENT": 3,
+						"TEXCOORD_0": 4,
+						"TEXCOORD_1": 5,
+						"TEXCOORD_2": 6
+					},
+					"indices": 0,
+					"material": 1
+				}
+			]
+		},
+		{
+			"name": "pr_background_mountain_a_1_winter4",
+			"primitives": [
+				{
+					"attributes":
+					{
+						"POSITION": 1,
+						"NORMAL": 2,
+						"TANGENT": 3,
+						"TEXCOORD_0": 4,
+						"TEXCOORD_1": 5,
+						"TEXCOORD_2": 6
+					},
+					"indices": 0,
+					"material": 2
+				}
+			]
+		},
+		{
+			"name": "pr_background_mountain_a_5_winter",
+			"primitives": [
+				{
+					"attributes":
+					{
+						"POSITION": 8,
+						"NORMAL": 9,
+						"TANGENT": 10,
+						"TEXCOORD_0": 11,
+						"TEXCOORD_1": 12,
+						"TEXCOORD_2": 13
+					},
+					"indices": 7,
+					"material": 3
+				}
+			]
+		}
+	],
+	"nodes": [
+		{
+			"name": "pr_background_mountain_a_1_winter",
+			"translation": [ 204.899994, 0, 193.300003 ],
+			"scale": [ 0.807500005, 0.807500005, 0.807500005 ],
+			"mesh": 0
+		},
+		{
+			"name": "pr_background_mountain_a_1_winter3",
+			"translation": [ -102.799995, -9.09999943, 329.399994 ],
+			"rotation": [ -0, -0.615661502, 0, 0.788010776 ],
+			"scale": [ 0.5, 0.5, 0.5 ],
+			"mesh": 1
+		},
+		{
+			"name": "pr_background_mountain_a_1_winter4",
+			"translation": [ -13.8999996, -9.09999943, 473 ],
+			"rotation": [ -0, -0.241921902, 0, 0.970295727 ],
+			"scale": [ 0.637499988, 0.637499988, 0.637499988 ],
+			"mesh": 2
+		},
+		{
+			"name": "pr_background_mountain_a_5_winter",
+			"translation": [ -332.299988, 1.5, 69.4000015 ],
+			"scale": [ 2, 5, 2 ],
+			"mesh": 3
+		}
+	],
+	"samplers": [
+		{
+			"minFilter": 9987,
+			"magFilter": 9729
+		}
+	],
+	"scenes": [
+		{
+			"name": "Main",
+			"nodes": [ 0, 1, 2, 3 ]
+		}
+	],
+	"textures": [
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter_BaseColor",
+			"sampler": 0,
+			"source": 0
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter_Normal",
+			"sampler": 0,
+			"source": 1
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter3_BaseColor",
+			"sampler": 0,
+			"source": 2
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter3_Normal",
+			"sampler": 0,
+			"source": 3
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter4_BaseColor",
+			"sampler": 0,
+			"source": 4
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_1_winter4_Normal",
+			"sampler": 0,
+			"source": 5
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_5_winter_BaseColor",
+			"sampler": 0,
+			"source": 6
+		},
+		{
+			"name": "pr_background_mountain_a_M_winter_pr_background_mountain_a_5_winter_Normal",
+			"sampler": 0,
+			"source": 7
+		}
+	],
+	"extensionsUsed": [
+		"KHR_texture_transform",
+		"KHR_materials_specular"
+	]
+}

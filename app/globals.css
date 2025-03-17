@@ -1,26 +1,522 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
+  --primary-color: 0, 255, 204; /* #00ffcc */
+  --secondary-color: 41, 121, 255; /* #2979ff */
+  --accent-color: 255, 64, 129; /* #ff4081 */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+    min-width: 100vw;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    letter-spacing: -0.02em;
+    color: rgb(var(--foreground-rgb));
+    background: black;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  #__next {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    outline: none;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Force text overlay to be visible */
+  [data-overlay="true"],
+  div[style*="z-index: 9000"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 9000 !important;
+    pointer-events: auto !important;
+  }
+
+  /* Hide Next.js dev watermark - target all possible selectors */
+  div:has(> div[data-nextjs-codeframe]),
+  div[data-nextjs-codeframe],
+  div[data-nextjs-build-error],
+  div[data-nextjs-terminal],
+  div[data-nextjs-toast],
+  div[data-nextjs-dialog],
+  div[data-nextjs-dev-indicator],
+  div[data-nextjs-dev-toolbar],
+  div[data-nextjs-dev-overlay],
+  div[data-nextjs-dev-watermark],
+  div[data-nextjs-dev-watermark-container],
+  div[data-nextjs-dev-watermark-logo],
+  div[data-nextjs-dev-watermark-text],
+  div[data-nextjs-dev-watermark-icon],
+  div[data-nextjs-dev-watermark-button],
+  div[data-nextjs-dev-watermark-link],
+  div[data-nextjs-dev-watermark-image],
+  div[data-nextjs-dev-watermark-svg],
+  div[data-nextjs-dev-watermark-path],
+  div[data-nextjs-dev-watermark-rect],
+  div[data-nextjs-dev-watermark-circle],
+  div[data-nextjs-dev-watermark-polygon],
+  div[data-nextjs-dev-watermark-polyline],
+  div[data-nextjs-dev-watermark-line],
+  div[data-nextjs-dev-watermark-ellipse],
+  div[data-nextjs-dev-watermark-g],
+  div[data-nextjs-dev-watermark-defs],
+  div[data-nextjs-dev-watermark-mask],
+  div[data-nextjs-dev-watermark-clipPath],
+  div[data-nextjs-dev-watermark-pattern],
+  div[data-nextjs-dev-watermark-filter],
+  div[data-nextjs-dev-watermark-feBlend],
+  div[data-nextjs-dev-watermark-feColorMatrix],
+  div[data-nextjs-dev-watermark-feComponentTransfer],
+  div[data-nextjs-dev-watermark-feComposite],
+  div[data-nextjs-dev-watermark-feConvolveMatrix],
+  div[data-nextjs-dev-watermark-feDiffuseLighting],
+  div[data-nextjs-dev-watermark-feDisplacementMap],
+  div[data-nextjs-dev-watermark-feDistantLight],
+  div[data-nextjs-dev-watermark-feDropShadow],
+  div[data-nextjs-dev-watermark-feFlood],
+  div[data-nextjs-dev-watermark-feFuncA],
+  div[data-nextjs-dev-watermark-feFuncB],
+  div[data-nextjs-dev-watermark-feFuncG],
+  div[data-nextjs-dev-watermark-feFuncR],
+  div[data-nextjs-dev-watermark-feGaussianBlur],
+  div[data-nextjs-dev-watermark-feImage],
+  div[data-nextjs-dev-watermark-feMerge],
+  div[data-nextjs-dev-watermark-feMergeNode],
+  div[data-nextjs-dev-watermark-feMorphology],
+  div[data-nextjs-dev-watermark-feOffset],
+  div[data-nextjs-dev-watermark-fePointLight],
+  div[data-nextjs-dev-watermark-feSpecularLighting],
+  div[data-nextjs-dev-watermark-feSpotLight],
+  div[data-nextjs-dev-watermark-feTile],
+  div[data-nextjs-dev-watermark-feTurbulence],
+  div[id^="__next-build-watcher"],
+  div[data-testid="dev-overlay"],
+  button[data-nextjs-reset-button] {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    top: -9999px !important;
+    left: -9999px !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Style improvements */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 100%);
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  /* Improve font rendering */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 204, 0.3);
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 204, 0.5);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .animate-fade-in {
+    opacity: 0;
+    animation: fadeIn 0.8s ease-out forwards;
+  }
+  
+  .animate-slide-up {
+    transform: translateY(20px);
+    opacity: 0;
+    animation: slideUp 0.8s ease-out forwards;
+  }
+  
+  .animate-delay-100 {
+    animation-delay: 100ms;
+  }
+  
+  .animate-delay-200 {
+    animation-delay: 200ms;
+  }
+  
+  .animate-delay-300 {
+    animation-delay: 300ms;
+  }
+  
+  .animate-delay-400 {
+    animation-delay: 400ms;
+  }
+  
+  .animate-delay-500 {
+    animation-delay: 500ms;
+  }
+  
+  /* Glass effect */
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  /* Text glow effects */
+  .text-glow {
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.7), 
+                 0 0 20px rgba(255, 255, 255, 0.5), 
+                 0 0 30px rgba(255, 255, 255, 0.3);
+  }
+
+  .text-glow-strong {
+    text-shadow: 0 0 15px rgba(255, 255, 255, 1), 
+                 0 0 30px rgba(255, 255, 255, 0.8), 
+                 0 0 45px rgba(255, 255, 255, 0.6),
+                 0 0 60px rgba(255, 255, 255, 0.4);
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+  }
+
+  .text-glow-subtle {
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.7),
+                 0 0 12px rgba(255, 255, 255, 0.3);
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+    letter-spacing: 0.02em;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Custom styles for 3D scenes */
+.r3f-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.r3f-canvas-interactive {
+  pointer-events: auto;
+}
+
+/* Text gradient effect */
+.text-gradient {
+  background: linear-gradient(
+    90deg, 
+    rgb(var(--primary-color)) 0%, 
+    rgb(var(--secondary-color)) 50%, 
+    rgb(var(--accent-color)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  font-weight: 700;
+  position: relative;
+  text-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+}
+
+/* Button styles */
+.glow-button {
+  box-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+.glow-button:hover {
+  box-shadow: 0 0 25px rgba(0, 255, 204, 0.7);
+}
+
+/* Glitch text effect for logo */
+.glitch-text {
+  position: relative;
+  animation: glitch-skew 1s infinite linear alternate-reverse;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glitch-text::before {
+  left: 2px;
+  text-shadow: -2px 0 #ff00c1;
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim 5s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+  left: -2px;
+  text-shadow: -2px 0 #00fff9, 2px 2px #ff00c1;
+  animation: glitch-anim2 1s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+  0% {
+    clip: rect(7px, 9999px, 51px, 0);
+    transform: skew(0.5deg);
+  }
+  5% {
+    clip: rect(78px, 9999px, 13px, 0);
+    transform: skew(0.7deg);
+  }
+  10% {
+    clip: rect(38px, 9999px, 92px, 0);
+    transform: skew(0.9deg);
+  }
+  15% {
+    clip: rect(56px, 9999px, 34px, 0);
+    transform: skew(0.1deg);
+  }
+  20% {
+    clip: rect(59px, 9999px, 71px, 0);
+    transform: skew(0.4deg);
+  }
+  25% {
+    clip: rect(37px, 9999px, 8px, 0);
+    transform: skew(0.6deg);
+  }
+  30% {
+    clip: rect(82px, 9999px, 5px, 0);
+    transform: skew(0.2deg);
+  }
+  35% {
+    clip: rect(16px, 9999px, 98px, 0);
+    transform: skew(0.8deg);
+  }
+  40% {
+    clip: rect(23px, 9999px, 35px, 0);
+    transform: skew(0.3deg);
+  }
+  45% {
+    clip: rect(92px, 9999px, 9px, 0);
+    transform: skew(0.5deg);
+  }
+  50% {
+    clip: rect(74px, 9999px, 65px, 0);
+    transform: skew(0.7deg);
+  }
+  55% {
+    clip: rect(49px, 9999px, 27px, 0);
+    transform: skew(0.1deg);
+  }
+  60% {
+    clip: rect(11px, 9999px, 89px, 0);
+    transform: skew(0.9deg);
+  }
+  65% {
+    clip: rect(76px, 9999px, 86px, 0);
+    transform: skew(0.2deg);
+  }
+  70% {
+    clip: rect(31px, 9999px, 67px, 0);
+    transform: skew(0.4deg);
+  }
+  75% {
+    clip: rect(8px, 9999px, 42px, 0);
+    transform: skew(0.6deg);
+  }
+  80% {
+    clip: rect(63px, 9999px, 18px, 0);
+    transform: skew(0.8deg);
+  }
+  85% {
+    clip: rect(54px, 9999px, 47px, 0);
+    transform: skew(0.3deg);
+  }
+  90% {
+    clip: rect(19px, 9999px, 93px, 0);
+    transform: skew(0.5deg);
+  }
+  95% {
+    clip: rect(81px, 9999px, 21px, 0);
+    transform: skew(0.7deg);
+  }
+  100% {
+    clip: rect(42px, 9999px, 69px, 0);
+    transform: skew(0.9deg);
+  }
+}
+
+@keyframes glitch-anim2 {
+  0% {
+    clip: rect(59px, 9999px, 32px, 0);
+    transform: skew(0.8deg);
+  }
+  5% {
+    clip: rect(47px, 9999px, 91px, 0);
+    transform: skew(0.6deg);
+  }
+  10% {
+    clip: rect(16px, 9999px, 38px, 0);
+    transform: skew(0.4deg);
+  }
+  15% {
+    clip: rect(72px, 9999px, 5px, 0);
+    transform: skew(0.2deg);
+  }
+  20% {
+    clip: rect(84px, 9999px, 53px, 0);
+    transform: skew(0.9deg);
+  }
+  25% {
+    clip: rect(9px, 9999px, 76px, 0);
+    transform: skew(0.7deg);
+  }
+  30% {
+    clip: rect(31px, 9999px, 12px, 0);
+    transform: skew(0.5deg);
+  }
+  35% {
+    clip: rect(61px, 9999px, 84px, 0);
+    transform: skew(0.3deg);
+  }
+  40% {
+    clip: rect(28px, 9999px, 29px, 0);
+    transform: skew(0.1deg);
+  }
+  45% {
+    clip: rect(93px, 9999px, 57px, 0);
+    transform: skew(0.8deg);
+  }
+  50% {
+    clip: rect(36px, 9999px, 81px, 0);
+    transform: skew(0.6deg);
+  }
+  55% {
+    clip: rect(64px, 9999px, 14px, 0);
+    transform: skew(0.4deg);
+  }
+  60% {
+    clip: rect(12px, 9999px, 93px, 0);
+    transform: skew(0.2deg);
+  }
+  65% {
+    clip: rect(83px, 9999px, 37px, 0);
+    transform: skew(0.9deg);
+  }
+  70% {
+    clip: rect(45px, 9999px, 62px, 0);
+    transform: skew(0.7deg);
+  }
+  75% {
+    clip: rect(19px, 9999px, 26px, 0);
+    transform: skew(0.5deg);
+  }
+  80% {
+    clip: rect(71px, 9999px, 79px, 0);
+    transform: skew(0.3deg);
+  }
+  85% {
+    clip: rect(24px, 9999px, 41px, 0);
+    transform: skew(0.1deg);
+  }
+  90% {
+    clip: rect(92px, 9999px, 87px, 0);
+    transform: skew(0.8deg);
+  }
+  95% {
+    clip: rect(57px, 9999px, 11px, 0);
+    transform: skew(0.6deg);
+  }
+  100% {
+    clip: rect(34px, 9999px, 68px, 0);
+    transform: skew(0.4deg);
+  }
+}
+
+@keyframes glitch-skew {
+  0% {
+    transform: skew(-1deg);
+  }
+  10% {
+    transform: skew(0.5deg);
+  }
+  20% {
+    transform: skew(0.7deg);
+  }
+  30% {
+    transform: skew(0.2deg);
+  }
+  40% {
+    transform: skew(-0.6deg);
+  }
+  50% {
+    transform: skew(-0.4deg);
+  }
+  60% {
+    transform: skew(0.8deg);
+  }
+  70% {
+    transform: skew(-0.2deg);
+  }
+  80% {
+    transform: skew(0.3deg);
+  }
+  90% {
+    transform: skew(-0.5deg);
+  }
+  100% {
+    transform: skew(0.9deg);
+  }
 }
