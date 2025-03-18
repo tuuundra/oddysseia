@@ -1,0 +1,152 @@
+{
+	"asset": {
+		"version": "2.0",
+		"generator": "Unreal Engine 5.4.4"
+	},
+	"scene": 0,
+	"nodes": [
+		{
+			"name": "NewGeometryCollection",
+			"translation": [ -54.5628395, 7.92106867, 331.802948 ],
+			"children": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+		},
+		{
+			"name": "rock_piece_1",
+			"translation": [0.1, 0.2, 0.1],
+			"scale": [0.5, 0.5, 0.5],
+			"mesh": 0
+		},
+		{
+			"name": "rock_piece_2",
+			"translation": [-0.2, 0.1, 0.3],
+			"scale": [0.4, 0.6, 0.4],
+			"mesh": 1
+		},
+		{
+			"name": "rock_piece_3",
+			"translation": [0.3, -0.1, -0.2],
+			"scale": [0.5, 0.3, 0.5],
+			"mesh": 2
+		},
+		{
+			"name": "rock_piece_4",
+			"translation": [-0.2, -0.2, -0.2],
+			"scale": [0.4, 0.5, 0.4],
+			"mesh": 3
+		},
+		{
+			"name": "rock_piece_5",
+			"translation": [0.2, 0.3, -0.1],
+			"scale": [0.3, 0.4, 0.3],
+			"mesh": 0
+		},
+		{
+			"name": "rock_piece_6",
+			"translation": [-0.1, -0.3, 0.2],
+			"scale": [0.5, 0.4, 0.5],
+			"mesh": 1
+		},
+		{
+			"name": "rock_piece_7",
+			"translation": [-0.3, 0.1, -0.3],
+			"scale": [0.4, 0.3, 0.4],
+			"mesh": 2
+		},
+		{
+			"name": "rock_piece_8",
+			"translation": [0.1, -0.1, -0.1],
+			"scale": [0.3, 0.5, 0.3],
+			"mesh": 3
+		},
+		{
+			"name": "rock_piece_9",
+			"translation": [-0.1, 0.1, 0.1],
+			"scale": [0.4, 0.3, 0.4],
+			"mesh": 0
+		},
+		{
+			"name": "rock_piece_10",
+			"translation": [0.3, -0.2, 0.2],
+			"scale": [0.5, 0.5, 0.5],
+			"mesh": 1
+		},
+		{
+			"name": "rock_piece_11",
+			"translation": [-0.2, 0.2, -0.1],
+			"scale": [0.4, 0.4, 0.4],
+			"mesh": 2
+		},
+		{
+			"name": "rock_piece_12",
+			"translation": [0.1, 0.3, 0.3],
+			"scale": [0.3, 0.3, 0.3],
+			"mesh": 3
+		}
+	],
+	"meshes": [
+		{
+			"primitives": [
+				{
+					"attributes": {
+						"POSITION": 0,
+						"NORMAL": 1
+					},
+					"indices": 2,
+					"material": 0
+				}
+			]
+		},
+		{
+			"primitives": [
+				{
+					"attributes": {
+						"POSITION": 3,
+						"NORMAL": 4
+					},
+					"indices": 5,
+					"material": 0
+				}
+			]
+		},
+		{
+			"primitives": [
+				{
+					"attributes": {
+						"POSITION": 6,
+						"NORMAL": 7
+					},
+					"indices": 8,
+					"material": 0
+				}
+			]
+		},
+		{
+			"primitives": [
+				{
+					"attributes": {
+						"POSITION": 9,
+						"NORMAL": 10
+					},
+					"indices": 11,
+					"material": 0
+				}
+			]
+		}
+	],
+	"materials": [
+		{
+			"name": "RockMaterial",
+			"pbrMetallicRoughness": {
+				"baseColorFactor": [0.2, 0.2, 0.2, 1.0],
+				"metallicFactor": 0.1,
+				"roughnessFactor": 0.8
+			}
+		}
+	],
+	"scenes": [
+		{
+			"name": "Main",
+			"nodes": [ 0 ]
+		}
+	]
+} 

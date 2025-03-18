@@ -4,6 +4,10 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import SimpleSnow from './SimpleSnow';
+import FracturedRock from './FracturedRock';
+import FracturedRealRock from './FracturedRealRock';
+import SimpleRock from './SimpleRock';
+
 
 // Custom shader for the fluid effect
 const fluidShader = {
@@ -848,7 +852,12 @@ function Scene() {
           <Igloo />
         </group>
         
-        {/* New simple snow component */}
+        {/* Rock model positioned in the scene */}
+        <group position={[25, 3, -25]} scale={[3, 3, 3]}>
+          <SimpleRock />
+        </group>
+        
+        {/* Snow effects */}
         <SimpleSnow />
         
         {/* Environment settings */}
