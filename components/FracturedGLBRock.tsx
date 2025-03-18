@@ -12,6 +12,109 @@ const FracturedGLBRock = () => {
   // Clone the scene to avoid modifying the cached original
   const scene = useRef<THREE.Group>(originalScene.clone());
   
+  // Track the center point of the entire rock
+  const centerPoint = useRef(new THREE.Vector3());
+  
+  // Calculate center and prepare for explosion
+  useEffect(() => {
+    if (scene.current) {
+      // First pass: Calculate the actual center of the entire rock
+      let totalVertices = 0;
+      const rockCenter = new THREE.Vector3();
+      
+      // Go through all fragments and accumulate their vertices
+      scene.current.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const geometry = child.geometry;
+          const positionAttribute = geometry.getAttribute('position');
+          const vertexCount = positionAttribute.count;
+          const vertex = new THREE.Vector3();
+          
+          // Transform matrix to convert from local to world space
+          const matrix = new THREE.Matrix4();
+          matrix.compose(
+            child.position,
+            child.quaternion,
+            child.scale
+          );
+          
+          // Add each vertex position to the total
+          for (let i = 0; i < vertexCount; i++) {
+            vertex.fromBufferAttribute(positionAttribute, i);
+            vertex.applyMatrix4(matrix);  // Transform to world space
+            rockCenter.add(vertex);
+            totalVertices++;
+          }
+        }
+      });
+      
+      // Calculate average position of all vertices
+      if (totalVertices > 0) {
+        rockCenter.divideScalar(totalVertices);
+        centerPoint.current.copy(rockCenter);
+        console.log('Rock center from all vertices:', rockCenter);
+      }
+      
+      // Second pass: Move each fragment away from the center
+      scene.current.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          // Save original position
+          child.userData.originalPosition = child.position.clone();
+          
+          // Calculate the center of this fragment's geometry
+          const geometry = child.geometry;
+          const positionAttribute = geometry.getAttribute('position');
+          const vertexCount = positionAttribute.count;
+          
+          // Calculate average position of all vertices in this fragment
+          const fragmentCenter = new THREE.Vector3();
+          const vertex = new THREE.Vector3();
+          
+          for (let i = 0; i < vertexCount; i++) {
+            vertex.fromBufferAttribute(positionAttribute, i);
+            fragmentCenter.add(vertex);
+          }
+          
+          fragmentCenter.divideScalar(vertexCount);
+          
+          // Transform fragment center to world space
+          const worldFragmentCenter = fragmentCenter.clone().applyMatrix4(
+            new THREE.Matrix4().compose(
+              child.position,
+              child.quaternion,
+              child.scale
+            )
+          );
+          
+          // Direction from rock center to fragment center
+          const direction = new THREE.Vector3()
+            .subVectors(worldFragmentCenter, centerPoint.current)
+            .normalize();
+          
+          // Adjust explosion amount based on position - less explosion for fragments near center
+          // This will help ensure the center light source is better hidden
+          const distFromCenter = worldFragmentCenter.distanceTo(centerPoint.current);
+          const maxExplosion = 0.04;  // Slightly larger overall explosion
+          const minExplosion = 0.01;  // Much smaller explosion for center pieces
+          
+          // Calculate explosion amount - closer to center = less explosion
+          const explosionFactor = Math.min(distFromCenter * 2, 1.0); // Scale factor
+          const explosionAmount = minExplosion + (explosionFactor * (maxExplosion - minExplosion));
+          
+          console.log(`Fragment ${child.name}: Direction ${direction.x.toFixed(2)}, ${direction.y.toFixed(2)}, ${direction.z.toFixed(2)}`);
+          
+          // Apply the explosion - move in the calculated direction
+          child.position.x += direction.x * explosionAmount;
+          child.position.y += direction.y * explosionAmount;
+          child.position.z += direction.z * explosionAmount;
+          
+          // Update original position to include explosion
+          child.userData.originalPosition.copy(child.position);
+        }
+      });
+    }
+  }, []);
+  
   // Set up materials and shadows but preserve original textures
   useEffect(() => {
     if (scene.current) {

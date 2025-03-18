@@ -757,10 +757,10 @@ const FloatingCamera = () => {
 // Environment fog
 const Fog = () => {
   useEffect(() => {
-    // Create a subtle fog effect
+    // Create an evening fog effect
     const scene = document.querySelector('canvas')?.parentElement;
     if (scene) {
-      scene.style.background = 'linear-gradient(to bottom, #b4c5e4 0%, #d6e0f0 100%)';
+      scene.style.background = 'linear-gradient(to bottom, #111830 0%, #2a3045 100%)';
     }
   }, []);
   
@@ -1032,15 +1032,15 @@ function Scene() {
         }}
         shadows
       >
-        <color attach="background" args={['#b8c6db']} />
-        <fog attach="fog" args={['#b8c6db', 15, 50]} />
+        <color attach="background" args={['#1a2435']} />
+        <fog attach="fog" args={['#1a2435', 10, 30]} />
         
-        {/* Main scene content */}
-        <ambientLight intensity={0.4} />
+        {/* Main scene content - reduced intensity for evening */}
+        <ambientLight intensity={0.2} color="#3a4a6a" />
         <directionalLight 
-          intensity={2.0} 
+          intensity={1.0} 
           position={[15, 20, 10]} 
-          color="#f0f0ff" 
+          color="#8090c0" 
           castShadow 
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
@@ -1050,15 +1050,15 @@ function Scene() {
           shadow-camera-top={20}
           shadow-camera-bottom={-20}
         />
-        <directionalLight intensity={0.5} position={[-10, -5, 5]} color="#e0e0ff" />
+        <directionalLight intensity={0.2} position={[-10, -5, 5]} color="#4a5a8a" />
         
-        {/* Add a spotlight to highlight the rock */}
+        {/* Add a spotlight to highlight the rock - warmer color for evening light */}
         <spotLight
           position={[15, 10, -5]}
           angle={0.3}
           penumbra={0.8}
-          intensity={1.5}
-          color="#ffffff"
+          intensity={0.8}
+          color="#d0a070"
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
@@ -1079,35 +1079,40 @@ function Scene() {
         
         {/* Floating fractured rock model */}
         <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
-          {/* Enhanced lighting for the rock to show textures */}
+          {/* Evening lighting for the rock */}
           <spotLight
             position={[3, 5, 3]}
             angle={0.6}
-            penumbra={0.5}
-            intensity={2.5}
-            color="#ffffff"
+            penumbra={0.7}
+            intensity={1.5}
+            color="#e08060"
             castShadow
             distance={30}
           />
           <spotLight
             position={[-2, -3, 5]}
             angle={0.7}
-            penumbra={0.6}
-            intensity={1.8}
-            color="#f0f0ff"
+            penumbra={0.8}
+            intensity={0.8}
+            color="#6070b0"
             castShadow={false}
             distance={25}
           />
+          
+          {/* Center light source radiating through cracks */}
           <pointLight 
-            position={[0, 0, 4]} 
-            intensity={1} 
-            color="#f8f8ff" 
+            position={[0, 0, 0]} 
+            intensity={8} 
+            color="#ff6030" 
+            distance={3.5}
+            decay={1.2}
           />
+          
           <FracturedGLBRock />
         </group>
         
         {/* Environment map for better PBR materials */}
-        <Environment preset="sunset" background={false} />
+        <Environment preset="night" background={false} />
         
         {/* Snow effects */}
         <SimpleSnow />
