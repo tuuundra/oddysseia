@@ -6,6 +6,13 @@ import * as THREE from 'three';
 const FracturedGLBRock = () => {
   const groupRef = useRef<THREE.Group>(null);
   
+  // Track rotation of the entire rock group
+  const rockRotation = useRef({
+    x: 0,
+    y: 0,
+    z: 0
+  });
+  
   // Use an absolute path to the GLB file
   const { scene: originalScene } = useGLTF('fractured_rock.glb', true);
   
@@ -19,9 +26,18 @@ const FracturedGLBRock = () => {
   const { camera } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2(-1000, -1000)); // Start off screen
+  const prevMouse = useRef(new THREE.Vector2(-1000, -1000)); // Track previous position
+  const mouseVelocity = useRef(0); // Track mouse movement speed
   
   // Keep track of which fragment is currently hovered
   const [hoveredFragment, setHoveredFragment] = useState<string | null>(null);
+  const hoveredFragmentRef = useRef<string | null>(null);
+  
+  // For smooth hover interpolation - move to component level
+  const lastMousePos = useRef(new THREE.Vector3(0, 0, 0));
+  const targetHoverPoint = useRef(new THREE.Vector3(0, 0, 0));
+  const isMouseMoving = useRef(false);
+  const lastMouseMoveTime = useRef(0);
   
   // Track all fragments for easy access during hover effects
   const fragmentsMap = useRef(new Map<string, {
@@ -35,9 +51,24 @@ const FracturedGLBRock = () => {
   // Mouse event handlers
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
-      // Convert mouse position to normalized device coordinates (-1 to +1)
-      mouse.current.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      // Store previous mouse position
+      prevMouse.current.copy(mouse.current);
+      
+      // Update current mouse position
+      const newX = (event.clientX / window.innerWidth) * 2 - 1;
+      const newY = -(event.clientY / window.innerHeight) * 2 + 1;
+      
+      // Calculate mouse velocity (squared distance, no need for sqrt)
+      const dx = newX - prevMouse.current.x;
+      const dy = newY - prevMouse.current.y;
+      mouseVelocity.current = dx*dx + dy*dy;
+      
+      // Set the new mouse position
+      mouse.current.set(newX, newY);
+      
+      // Flag that mouse is moving and update timestamp
+      isMouseMoving.current = true;
+      lastMouseMoveTime.current = performance.now();
     };
     
     // Add event listeners
@@ -270,6 +301,25 @@ const FracturedGLBRock = () => {
     
     const t = clock.getElapsedTime();
     
+    // Update the overall rotation of the entire rock group
+    // Using very slow rotation speeds for a subtle effect
+    rockRotation.current.y += 0.0005; // Slow rotation around Y axis
+    rockRotation.current.x = Math.sin(t * 0.1) * 0.01; // Very subtle tilt on X axis
+    rockRotation.current.z = Math.cos(t * 0.08) * 0.005; // Extremely subtle tilt on Z axis
+    
+    // Apply the rotation to the entire group
+    if (groupRef.current) {
+      groupRef.current.rotation.x = rockRotation.current.x;
+      groupRef.current.rotation.y = rockRotation.current.y;
+      groupRef.current.rotation.z = rockRotation.current.z;
+    }
+    
+    // Check if mouse has been still for a while
+    const MOUSE_STILL_THRESHOLD = 100; // ms
+    if (isMouseMoving.current && performance.now() - lastMouseMoveTime.current > MOUSE_STILL_THRESHOLD) {
+      isMouseMoving.current = false;
+    }
+    
     // Update raycaster with current mouse position
     raycaster.current.setFromCamera(mouse.current, camera);
     
@@ -295,11 +345,16 @@ const FracturedGLBRock = () => {
       }
     }
     
-    // Update hovered fragment state
-    if (hoveredMesh) {
-      setHoveredFragment(hoveredMesh.name);
-    } else {
-      setHoveredFragment(null);
+    // Store the hovered fragment in a ref to avoid state updates on every frame
+    const currentHovered = hoveredMesh ? hoveredMesh.name : null;
+    
+    // Only update state when it actually changes, and do it outside the frame loop
+    if (hoveredFragmentRef.current !== currentHovered) {
+      hoveredFragmentRef.current = currentHovered;
+      // Use requestAnimationFrame to batch state updates outside the render loop
+      requestAnimationFrame(() => {
+        setHoveredFragment(currentHovered);
+      });
     }
     
     // Calculate hover positions for all fragments
@@ -309,88 +364,145 @@ const FracturedGLBRock = () => {
     const maxExpansion = 0.15;
     
     // Max distance for influence spreading to nearby fragments
-    const influenceRadius = 0.7; 
+    const influenceRadius = 1.8; // Increased radius for wider effect area
     
-    // Animation speed for expansion/contraction
-    const animSpeed = 0.15;
+    // Animation speed for expansion/contraction - much slower overall
+    const animSpeed = isMouseMoving.current ? 0.04 : 0.01; // Reduced by 50% for slower animation
     
-    // Find all mesh children (fragments)
-    groupRef.current.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        // Get fragment data from map
-        const fragmentData = fragmentsMap.current.get(child.name);
-        
-        if (fragmentData) {
-          // Calculate expansion based on hover
-          let targetExpansion = 0;
-          
-          // If we have a hovered fragment, calculate influence
-          if (hoverPoint) {
-            // Get world position of this fragment
-            const fragWorldPos = new THREE.Vector3();
-            child.getWorldPosition(fragWorldPos);
-            
-            // Distance from this fragment to the hovered point
-            const distToHover = fragWorldPos.distanceTo(hoverPoint);
-            
-            // Is this the hovered fragment?
-            const isHovered = child.name === hoveredFragment;
-            
-            if (isHovered) {
-              // Direct hover = maximum expansion
-              targetExpansion = maxExpansion;
-            } else if (distToHover < influenceRadius) {
-              // Falloff based on distance - closer fragments expand more
-              const influence = 1 - (distToHover / influenceRadius);
-              targetExpansion = maxExpansion * influence * 0.6; // Surrounding fragments expand less
-            }
-          }
-          
-          // Smoothly animate between current expansion and target
-          fragmentData.currentExpansion += (targetExpansion - fragmentData.currentExpansion) * animSpeed;
-          
-          // Apply expansion along direction from center
-          const expansionOffset = fragmentData.directionFromCenter.clone().multiplyScalar(fragmentData.currentExpansion);
-          
-          // Generate a unique animation based on the child's uuid
-          const uniqueValue = child.uuid.charCodeAt(0) / 255;
-          const secondUniqueValue = child.uuid.charCodeAt(1) / 255;
-          
-          // Set very subtle floating animation parameters
-          const floatSpeed = 0.1 + uniqueValue * 0.1;
-          const floatAmplitude = 0.003 + uniqueValue * 0.002;
-          
-          // Original position includes the base explosion but not the hover expansion
-          const originalPos = fragmentData.originalPosition;
-          
-          // Apply floating animation + hover expansion
-          child.position.x = originalPos.x + expansionOffset.x + Math.sin(t * floatSpeed) * floatAmplitude;
-          child.position.y = originalPos.y + expansionOffset.y + Math.cos(t * floatSpeed * 0.8) * floatAmplitude;
-          child.position.z = originalPos.z + expansionOffset.z + Math.sin(t * floatSpeed * 0.6 + 0.3) * floatAmplitude;
+    // Smooth interpolation of the hover point
+    if (hoverPoint) {
+      // If mouse has been still for a while, lock the target position completely
+      // This prevents micromovements in the hover detection that can cause jitters
+      if (!isMouseMoving.current) {
+        if (performance.now() - lastMouseMoveTime.current > 500) { // Slightly longer threshold for complete position lock
+          // After 500ms of no movement, just maintain the current position
+          // Don't update targetHoverPoint at all
         } else {
-          // Fallback for any fragments not in our map - just apply basic animation
-          // Generate a unique animation based on the child's uuid
-          const uniqueValue = child.uuid.charCodeAt(0) / 255;
-          const secondUniqueValue = child.uuid.charCodeAt(1) / 255;
-          
-          // Set very subtle floating animation parameters
-          const floatSpeed = 0.1 + uniqueValue * 0.1;
-          const floatAmplitude = 0.003 + uniqueValue * 0.002;
-          
-          // Save original position if not already saved
-          if (!child.userData.originalPosition) {
-            child.userData.originalPosition = child.position.clone();
-          }
-          
-          // Apply floating animation
-          const originalPos = child.userData.originalPosition;
-          child.position.x = originalPos.x + Math.sin(t * floatSpeed) * floatAmplitude;
-          child.position.y = originalPos.y + Math.cos(t * floatSpeed * 0.8) * floatAmplitude;
-          child.position.z = originalPos.z + Math.sin(t * floatSpeed * 0.6 + 0.3) * floatAmplitude;
+          // During the initial stillness period, allow small adjustments
+          targetHoverPoint.current.copy(hoverPoint);
+          lastMousePos.current.lerp(targetHoverPoint.current, 0.15); // Slightly slower adjustment (reduced from 0.2)
+        }
+      } else {
+        // Normal movement interpolation - smoother with slowed down lerp
+        targetHoverPoint.current.copy(hoverPoint);
+        lastMousePos.current.lerp(targetHoverPoint.current, 0.06); // Significantly slower interpolation (reduced from 0.1)
+      }
+    } else {
+      // No hover, gradually move target away
+      targetHoverPoint.current.set(0, 0, 0);
+      lastMousePos.current.lerp(targetHoverPoint.current, 0.02); // Even slower transition back (reduced from 0.03)
+    }
+    
+    // Update all fragments positions based on hover state
+    fragmentsMap.current.forEach((fragmentData, name) => {
+      const { mesh, directionFromCenter, originalPosition } = fragmentData;
+      let targetExpansion = 0;
+      
+      // If we have a hovered fragment, calculate influence
+      if (hoverPoint) {
+        // Get world position of this fragment
+        const fragWorldPos = new THREE.Vector3();
+        mesh.getWorldPosition(fragWorldPos);
+        
+        // Distance from this fragment to the interpolated hover point
+        const distToHover = fragWorldPos.distanceTo(lastMousePos.current);
+        
+        // Is this the hovered fragment?
+        const isHovered = name === hoveredFragmentRef.current;
+        
+        if (isHovered) {
+          // Direct hover = maximum expansion
+          targetExpansion = maxExpansion;
+        } else if (distToHover < influenceRadius) {
+          // Enhanced influence curve with smoother falloff
+          // Use a cubic falloff that gives more expansion to more fragments
+          const normDist = distToHover / influenceRadius;
+          // Softer, smoother falloff curve with more gradual transition
+          const influence = Math.pow(1 - normDist, 3); 
+          targetExpansion = maxExpansion * influence * 0.9; // Stronger effect for peripheral fragments
+        }
+      }
+      
+      // For moving mouse - implement a staged approach for smoother transitions
+      let dampingFactor;
+      
+      if (targetExpansion < fragmentData.currentExpansion) {
+        // Returning to rest state - use a slower factor based on how expanded it is
+        // More expanded = faster initial return, slowing down as it approaches rest
+        const expansionRatio = fragmentData.currentExpansion / maxExpansion;
+        dampingFactor = animSpeed * (0.2 + expansionRatio * 0.2); // Progressive return speed
+      } else {
+        // Expanding - slightly slower expansion for smoothness
+        dampingFactor = animSpeed * 0.7;
+      }
+      
+      // Apply smoothing with added damping to prevent oscillation
+      fragmentData.currentExpansion += (targetExpansion - fragmentData.currentExpansion) * dampingFactor;
+      
+      // Threshold to prevent micro-jitters when almost at rest position
+      // Use an increased threshold to ensure fragments fully return to zero
+      const restThreshold = 0.001; // Increased from 0.0008
+      
+      // Force fragments to truly reset when close to rest and target is zero
+      if (Math.abs(fragmentData.currentExpansion) < restThreshold && targetExpansion === 0) {
+        fragmentData.currentExpansion = 0;
+      }
+      
+      // Apply expansion along direction from center
+      const expansionOffset = directionFromCenter.clone().multiplyScalar(fragmentData.currentExpansion);
+      
+      // Generate a unique animation based on the child's uuid
+      const uniqueValue = name.charCodeAt(0) / 255;
+      const secondUniqueValue = name.charCodeAt(1) / 255;
+      
+      // Set very subtle floating animation parameters
+      const floatSpeed = 0.1 + uniqueValue * 0.1;
+      const floatAmplitude = 0.003 + uniqueValue * 0.002;
+      
+      // Make sure we're using the exact original position
+      const originalPos = originalPosition.clone();
+      
+      // Apply floating animation + hover expansion
+      mesh.position.x = originalPos.x + expansionOffset.x + Math.sin(t * floatSpeed) * floatAmplitude;
+      mesh.position.y = originalPos.y + expansionOffset.y + Math.cos(t * floatSpeed * 0.8) * floatAmplitude;
+      mesh.position.z = originalPos.z + expansionOffset.z + Math.sin(t * floatSpeed * 0.6 + 0.3) * floatAmplitude;
+      
+      // Add subtle rotation
+      const rotSpeed = 0.05 + secondUniqueValue * 0.05;
+      if (!mesh.userData.originalRotation) {
+        mesh.userData.originalRotation = new THREE.Euler().copy(mesh.rotation);
+      }
+      const origRot = mesh.userData.originalRotation;
+      
+      mesh.rotation.x = origRot.x + Math.sin(t * rotSpeed) * 0.001;
+      mesh.rotation.y = origRot.y + Math.cos(t * rotSpeed * 0.7) * 0.001;
+      mesh.rotation.z = origRot.z + Math.sin(t * rotSpeed * 0.5) * 0.001;
+    });
+    
+    // Handle any fragments not in the map
+    groupRef.current.traverse((child) => {
+      if (child instanceof THREE.Mesh && !fragmentsMap.current.has(child.name)) {
+        // Fallback for any fragments not in our map - just apply basic animation
+        const uniqueValue = child.uuid.charCodeAt(0) / 255;
+        const secondUniqueValue = child.uuid.charCodeAt(1) / 255;
+        
+        // Set very subtle floating animation parameters
+        const floatSpeed = 0.1 + uniqueValue * 0.1;
+        const floatAmplitude = 0.003 + uniqueValue * 0.002;
+        
+        // Save original position if not already saved
+        if (!child.userData.originalPosition) {
+          child.userData.originalPosition = child.position.clone();
         }
         
+        // Apply floating animation
+        const originalPos = child.userData.originalPosition;
+        child.position.x = originalPos.x + Math.sin(t * floatSpeed) * floatAmplitude;
+        child.position.y = originalPos.y + Math.cos(t * floatSpeed * 0.8) * floatAmplitude;
+        child.position.z = originalPos.z + Math.sin(t * floatSpeed * 0.6 + 0.3) * floatAmplitude;
+        
         // Add subtle rotation
-        const rotSpeed = 0.05 + (child.uuid.charCodeAt(1) / 255) * 0.05;
+        const rotSpeed = 0.05 + secondUniqueValue * 0.05;
         if (!child.userData.originalRotation) {
           child.userData.originalRotation = new THREE.Euler().copy(child.rotation);
         }
@@ -404,7 +516,7 @@ const FracturedGLBRock = () => {
   });
   
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} rotation={[rockRotation.current.x, rockRotation.current.y, rockRotation.current.z]}>
       {/* The actual fractured rock model */}
       <primitive object={scene.current} />
     </group>

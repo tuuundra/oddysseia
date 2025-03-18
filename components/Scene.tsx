@@ -1101,11 +1101,11 @@ function Scene() {
           
           {/* Center light source radiating through cracks */}
           <pointLight 
-            position={[0, 0, 0]} 
-            intensity={8} 
-            color="#ff6030" 
-            distance={3.5}
-            decay={1.2}
+            position={[0, 0.25, 0.15]} 
+            intensity={20} 
+            color="#c8ecec" 
+            distance={100.5}
+            decay={0.2}
           />
           
           <FracturedGLBRock />
