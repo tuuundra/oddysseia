@@ -8,6 +8,8 @@ import FracturedRock from './FracturedRock';
 import FracturedRealRock from './FracturedRealRock';
 import SimpleRock from './SimpleRock';
 import FracturedSimpleRock from './FracturedSimpleRock';
+import FracturedGLBRock from './FracturedGLBRock';
+import { FBXLoader } from 'three-stdlib';
 
 
 // Custom shader for the fluid effect
@@ -788,6 +790,216 @@ const OrbitDebugger = () => {
 // Preload GLTF model
 useGLTF.preload('/models/mountains/mountanous_landscape.gltf');
 
+// Import the rock fragments assembler logic
+const RockFragmentModel = ({
+  id,
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  scale = [0.1, 0.1, 0.1]
+}: {
+  id: string;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+}) => {
+  const meshRef = useRef<THREE.Group>(null);
+  const [model, setModel] = useState<THREE.Group | null>(null);
+  
+  // Generate a unique seed for this fragment for varied animation
+  const seed = useMemo(() => Math.random() * 1000, []);
+  
+  // Load the FBX model
+  useEffect(() => {
+    const loader = new FBXLoader();
+    const url = `/fracturedrockfragments/Game/BlankDefault/${id}.FBX`;
+    
+    loader.load(
+      url,
+      (fbx) => {
+        fbx.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = new THREE.MeshStandardMaterial({
+              color: '#616161',
+              roughness: 0.8,
+              metalness: 0.2,
+              // Green moss-like color map
+              emissive: "#193319",
+              emissiveIntensity: 0.05
+            });
+            
+            // Enable shadows
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        setModel(fbx);
+      },
+      (xhr) => {
+        console.log(`Loading ${id}: ${(xhr.loaded / xhr.total) * 100}% loaded`);
+      },
+      (error) => {
+        console.error('Error loading FBX:', error);
+      }
+    );
+  }, [id]);
+  
+  // Animate the fragment with a very subtle float
+  useFrame(({ clock }) => {
+    if (meshRef.current) {
+      const t = clock.getElapsedTime() + seed;
+      
+      // Almost imperceptible movement - just enough to hint at not being solid
+      const floatSpeed = 0.1 + (seed % 0.1);
+      const floatAmplitude = 0.0015 + (seed % 0.001); // 10x smaller animation
+      
+      meshRef.current.position.x = position[0] + Math.sin(t * floatSpeed) * floatAmplitude;
+      meshRef.current.position.y = position[1] + Math.cos(t * floatSpeed * 0.8) * floatAmplitude;
+      meshRef.current.position.z = position[2] + Math.sin(t * floatSpeed * 0.6 + 0.3) * floatAmplitude;
+      
+      // Extremely subtle rotation - barely visible
+      const rotSpeed = 0.05 + (seed % 0.05);
+      meshRef.current.rotation.x = rotation[0] + Math.sin(t * rotSpeed) * 0.001;
+      meshRef.current.rotation.y = rotation[1] + Math.cos(t * rotSpeed * 0.7) * 0.001;
+      meshRef.current.rotation.z = rotation[2] + Math.sin(t * rotSpeed * 0.5) * 0.001;
+    }
+  });
+  
+  // If no model is loaded yet, return null
+  if (!model) return null;
+  
+  return (
+    <group 
+      ref={meshRef}
+      position={position as any}
+      rotation={rotation as any}
+      scale={scale as any}
+    >
+      <primitive object={model} />
+    </group>
+  );
+};
+
+// Generate all rock fragments with positions in a cohesive boulder formation
+const generateRockFragments = () => {
+  // Get all available fragment IDs from the directory listing
+  const fragmentFiles = [
+    "NewGeometryCollection_SM_140_", "NewGeometryCollection_SM_156_", "NewGeometryCollection_SM_204_",
+    "NewGeometryCollection_SM_228_", "NewGeometryCollection_SM_269_", "NewGeometryCollection_SM_286_",
+    "NewGeometryCollection_SM_290_", "NewGeometryCollection_SM_382_", "NewGeometryCollection_SM_183_",
+    "NewGeometryCollection_SM_195_", "NewGeometryCollection_SM_245_", "NewGeometryCollection_SM_253_",
+    "NewGeometryCollection_SM_300_", "NewGeometryCollection_SM_316_", "NewGeometryCollection_SM_341_",
+    "NewGeometryCollection_SM_212_", "NewGeometryCollection_SM_357_", "NewGeometryCollection_SM_224_",
+    "NewGeometryCollection_SM_232_", "NewGeometryCollection_SM_265_", "NewGeometryCollection_SM_320_",
+    "NewGeometryCollection_SM_336_", "NewGeometryCollection_SM_361_", "NewGeometryCollection_SM_377_",
+    "NewGeometryCollection_SM_121_", "NewGeometryCollection_SM_137_", "NewGeometryCollection_SM_160_",
+    "NewGeometryCollection_SM_176_", "NewGeometryCollection_SM_199_", "NewGeometryCollection_SM_208_",
+    "NewGeometryCollection_SM_249_", "NewGeometryCollection_SM_273_", "NewGeometryCollection_SM_136_",
+    "NewGeometryCollection_SM_161_", "NewGeometryCollection_SM_177_", "NewGeometryCollection_SM_198_",
+    "NewGeometryCollection_SM_209_", "NewGeometryCollection_SM_248_", "NewGeometryCollection_SM_337_",
+    "NewGeometryCollection_SM_225_", "NewGeometryCollection_SM_233_", "NewGeometryCollection_SM_272_",
+    "NewGeometryCollection_SM_360_", "NewGeometryCollection_SM_376_", "NewGeometryCollection_SM_182_",
+    "NewGeometryCollection_SM_194_", "NewGeometryCollection_SM_213_", "NewGeometryCollection_SM_244_",
+    "NewGeometryCollection_SM_264_", "NewGeometryCollection_SM_301_", "NewGeometryCollection_SM_321_",
+    "NewGeometryCollection_SM_356_", "NewGeometryCollection_SM_157_", "NewGeometryCollection_SM_205_",
+    "NewGeometryCollection_SM_229_", "NewGeometryCollection_SM_252_", "NewGeometryCollection_SM_291_",
+    "NewGeometryCollection_SM_317_", "NewGeometryCollection_SM_340_", "NewGeometryCollection_SM_141_",
+    "NewGeometryCollection_SM_234_", "NewGeometryCollection_SM_263_", "NewGeometryCollection_SM_268_",
+    "NewGeometryCollection_SM_287_", "NewGeometryCollection_SM_326_", "NewGeometryCollection_SM_371_",
+    "NewGeometryCollection_SM_383_", "NewGeometryCollection_SM_127_", "NewGeometryCollection_SM_170_",
+    "NewGeometryCollection_SM_189_", "NewGeometryCollection_SM_222_", "NewGeometryCollection_SM_259_",
+    "NewGeometryCollection_SM_275_", "NewGeometryCollection_SM_330_", "NewGeometryCollection_SM_367_",
+    "NewGeometryCollection_SM_131_", "NewGeometryCollection_SM_146_", "NewGeometryCollection_SM_166_",
+    "NewGeometryCollection_SM_218_", "NewGeometryCollection_SM_238_", "NewGeometryCollection_SM_280_",
+    "NewGeometryCollection_SM_384_", "NewGeometryCollection_SM_150_", "NewGeometryCollection_SM_202_",
+    "NewGeometryCollection_SM_255_", "NewGeometryCollection_SM_279_", "NewGeometryCollection_SM_296_",
+    "NewGeometryCollection_SM_347_", "NewGeometryCollection_SM_185_", "NewGeometryCollection_SM_193_",
+    "NewGeometryCollection_SM_214_", "NewGeometryCollection_SM_243_", "NewGeometryCollection_SM_306_",
+    "NewGeometryCollection_SM_310_", "NewGeometryCollection_SM_351_", "NewGeometryCollection_SM_184_",
+    "NewGeometryCollection_SM_192_", "NewGeometryCollection_SM_215_", "NewGeometryCollection_SM_242_",
+    "NewGeometryCollection_SM_254_"
+  ];
+  
+  const fragments = [];
+  const totalFragments = fragmentFiles.length;
+  
+  // Set the center position for our rock
+  const center = [20, 1, -20];
+  const scale = [0.07, 0.07, 0.07] as [number, number, number]; // Smaller scale for tighter fit
+  
+  // Very small offset to create tiny gaps between fragments
+  const gapSize = 0.002;
+  
+  // Function to generate a 3D position on the surface of a boulder
+  const getBoulderPoint = (theta: number, phi: number, radius: number, index: number) => {
+    // Convert spherical coordinates to cartesian
+    const x = center[0] + radius * Math.sin(phi) * Math.cos(theta);
+    const y = center[1] + radius * Math.sin(phi) * Math.sin(theta);
+    const z = center[2] + radius * Math.cos(phi);
+    
+    // Apply a slight distortion to make the shape more rock-like and less perfectly spherical
+    const noise = Math.sin(theta * 5 + phi * 3) * 0.05 +   // Surface variation
+                 Math.cos(theta * 7 - phi * 2) * 0.03 +    // More subtle variation
+                 (index % 3 === 0 ? 0.03 : 0);             // Occasional bumps
+    
+    return {
+      position: [x + noise, y + noise * 0.8, z + noise] as [number, number, number],
+      // Rotation should follow the surface normal for tight fit
+      rotation: [
+        phi + Math.PI/2 + (Math.random() - 0.5) * 0.1,  // Align with surface + small random
+        theta + (Math.random() - 0.5) * 0.1,            // Align with surface + small random
+        Math.random() * Math.PI * 2                     // Random rotation around normal
+      ] as [number, number, number]
+    };
+  };
+  
+  // Distribute fragments evenly across the boulder
+  for (let i = 0; i < totalFragments; i++) {
+    // Use fibonacci sphere distribution for even spacing
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const theta = 2 * Math.PI * i / goldenRatio;
+    const phi = Math.acos(1 - 2 * (i + 0.5) / totalFragments);
+    
+    // Base radius and scale - larger pieces in middle of the boulder
+    const normalizedIndex = i / totalFragments;
+    let radius = 0.9;
+    
+    // Adjust radius slightly to create a more non-uniform boulder shape
+    if (normalizedIndex < 0.3) {
+      // Bottom pieces slightly compressed
+      radius *= 0.9;
+    } else if (normalizedIndex > 0.7) {
+      // Top pieces slightly extended
+      radius *= 1.1;
+    }
+    
+    // Get the position and rotation
+    const { position, rotation } = getBoulderPoint(theta, phi, radius, i);
+    
+    // Add slight gap between fragments (very small random offset)
+    const gapOffset = [
+      (Math.random() - 0.5) * gapSize,
+      (Math.random() - 0.5) * gapSize,
+      (Math.random() - 0.5) * gapSize
+    ] as [number, number, number];
+    
+    fragments.push({
+      id: fragmentFiles[i],
+      position: [
+        position[0] + gapOffset[0],
+        position[1] + gapOffset[1],
+        position[2] + gapOffset[2]
+      ] as [number, number, number],
+      rotation: rotation,
+      scale: scale
+    });
+  }
+  
+  return fragments;
+};
+
+// Generate all rock fragments
+const rockFragments = generateRockFragments();
+
 function Scene() {
   return (
     <div style={{ 
@@ -865,16 +1077,34 @@ function Scene() {
           <Igloo />
         </group>
         
-        {/* Rock models */}
-        {/* Regular simple rock - hidden for now */}
-        {/* <group position={[20, 1, -20]} scale={[4, 4, 4]}>
-          <SimpleRock />
-        </group> */}
-        
-        {/* Fractured rock with interactive hover effect - hidden while working on fragment assembler */}
-        {/* <group position={[20, 1, -20]} scale={[6, 6, 6]}>
-          <FracturedSimpleRock />
-        </group> */}
+        {/* Floating fractured rock model */}
+        <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
+          {/* Enhanced lighting for the rock to show textures */}
+          <spotLight
+            position={[3, 5, 3]}
+            angle={0.6}
+            penumbra={0.5}
+            intensity={2.5}
+            color="#ffffff"
+            castShadow
+            distance={30}
+          />
+          <spotLight
+            position={[-2, -3, 5]}
+            angle={0.7}
+            penumbra={0.6}
+            intensity={1.8}
+            color="#f0f0ff"
+            castShadow={false}
+            distance={25}
+          />
+          <pointLight 
+            position={[0, 0, 4]} 
+            intensity={1} 
+            color="#f8f8ff" 
+          />
+          <FracturedGLBRock />
+        </group>
         
         {/* Environment map for better PBR materials */}
         <Environment preset="sunset" background={false} />

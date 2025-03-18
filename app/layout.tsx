@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Metadata } from "next";
+import { Metadata, Viewport } from "next";
 import { Inter, Courier_Prime } from "next/font/google";
 
 // Initialize fonts
@@ -13,7 +13,12 @@ const courierPrime = Courier_Prime({
 export const metadata: Metadata = {
   title: "Oddysseia - Onchain Community",
   description: "Building the largest onchain community, driving the consumer crypto revolution",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

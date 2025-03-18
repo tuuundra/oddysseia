@@ -1,10 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import FragmentAssembler from '../components/FragmentAssembler';
 import Head from 'next/head';
 import Link from 'next/link';
 
 export default function RockAssemblerPage() {
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if the directory exists on mount
+    fetch('/fracturedrockfragments/Game/BlankDefault/NewGeometryCollection_SM_285_.FBX')
+      .then(response => {
+        if (!response.ok) {
+          setErrorMessage("Fragment files not found. Make sure to copy your rock fragment files to the public/fracturedrockfragments directory.");
+        }
+      })
+      .catch(() => {
+        setErrorMessage("Unable to load rock fragment files. Please ensure they are copied to the public/fracturedrockfragments directory.");
+      });
+  }, []);
+
   return (
     <>
       <Head>
@@ -20,12 +35,38 @@ export default function RockAssemblerPage() {
         height: '100%', 
         background: 'linear-gradient(to bottom, #0f2027, #203a43, #2c5364)'
       }}>
-        <Canvas
-          camera={{ position: [0, 5, 10], fov: 50 }}
-          style={{ width: '100%', height: '100%' }}
-        >
-          <FragmentAssembler />
-        </Canvas>
+        {errorMessage ? (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            maxWidth: '500px',
+            textAlign: 'center'
+          }}>
+            <h2>Error Loading Fragments</h2>
+            <p>{errorMessage}</p>
+            <div style={{ marginTop: '20px' }}>
+              <p>To resolve this issue:</p>
+              <ol style={{ textAlign: 'left' }}>
+                <li>Copy all your fragment FBX files to the <code>/public/fracturedrockfragments/Game/BlankDefault/</code> directory</li>
+                <li>Make sure the file paths match the expected pattern: <code>NewGeometryCollection_SM_XXX_.FBX</code></li>
+                <li>Refresh this page after copying the files</li>
+              </ol>
+            </div>
+          </div>
+        ) : (
+          <Canvas
+            camera={{ position: [0, 5, 10], fov: 50 }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <FragmentAssembler />
+          </Canvas>
+        )}
         
         <div style={{
           position: 'absolute',
