@@ -7,6 +7,7 @@ import SimpleSnow from './SimpleSnow';
 import FracturedRock from './FracturedRock';
 import FracturedRealRock from './FracturedRealRock';
 import SimpleRock from './SimpleRock';
+import FracturedSimpleRock from './FracturedSimpleRock';
 
 
 // Custom shader for the fluid effect
@@ -823,9 +824,9 @@ function Scene() {
         <fog attach="fog" args={['#b8c6db', 15, 50]} />
         
         {/* Main scene content */}
-        <ambientLight intensity={0.6} />
+        <ambientLight intensity={0.4} />
         <directionalLight 
-          intensity={1.5} 
+          intensity={2.0} 
           position={[15, 20, 10]} 
           color="#f0f0ff" 
           castShadow 
@@ -837,7 +838,19 @@ function Scene() {
           shadow-camera-top={20}
           shadow-camera-bottom={-20}
         />
-        <directionalLight intensity={0.3} position={[-10, -5, 5]} color="#e0e0ff" />
+        <directionalLight intensity={0.5} position={[-10, -5, 5]} color="#e0e0ff" />
+        
+        {/* Add a spotlight to highlight the rock */}
+        <spotLight
+          position={[15, 10, -5]}
+          angle={0.3}
+          penumbra={0.8}
+          intensity={1.5}
+          color="#ffffff"
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+        />
         
         {/* Use FloatingCamera instead of OrbitDebugger */}
         <FloatingCamera />
@@ -852,10 +865,19 @@ function Scene() {
           <Igloo />
         </group>
         
-        {/* Rock model positioned in the scene */}
-        <group position={[25, 3, -25]} scale={[3, 3, 3]}>
+        {/* Rock models */}
+        {/* Regular simple rock - hidden for now */}
+        {/* <group position={[20, 1, -20]} scale={[4, 4, 4]}>
           <SimpleRock />
-        </group>
+        </group> */}
+        
+        {/* Fractured rock with interactive hover effect - hidden while working on fragment assembler */}
+        {/* <group position={[20, 1, -20]} scale={[6, 6, 6]}>
+          <FracturedSimpleRock />
+        </group> */}
+        
+        {/* Environment map for better PBR materials */}
+        <Environment preset="sunset" background={false} />
         
         {/* Snow effects */}
         <SimpleSnow />
