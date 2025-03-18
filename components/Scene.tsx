@@ -558,7 +558,7 @@ const MountainLandscape = () => {
       ref={groupRef} 
       object={scene} 
       scale={[0.2, 0.2, 0.2]} 
-      position={[0, -3, 0]} 
+      position={[0, -6, 0]} 
       rotation={[0, Math.PI / 6, 0]} 
     />
   );
