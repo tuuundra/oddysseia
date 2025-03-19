@@ -1,7 +1,8 @@
 "use client";
 
 import Scene from "@/components/Scene";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import SceneContainer from "@/components/SceneContainer";
 
 // Logo component with glitch effect
 const GlitchLogo = () => {
@@ -59,13 +60,31 @@ const ButtonHider = () => {
   );
 };
 
+// Custom HTML content component for scrollytelling
+const HtmlContent = () => {
+  return (
+    <div style={{ 
+      position: 'absolute', 
+      top: 0, 
+      left: 0, 
+      width: '100%', 
+      height: '500vh', // 5x viewport height for 5 scroll sections
+      pointerEvents: 'none',
+      zIndex: 100
+    }}>
+      {/* Empty container for future content if needed */}
+    </div>
+  );
+};
+
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
-
+  
   // Force render after component mount to ensure overlay is visible
   useEffect(() => {
-    setMounted(true);
+    // Set mounted after a brief delay to allow React to settle
+    const timer = setTimeout(() => setMounted(true), 50);
     
     // Force the overlay to be visible
     const forceVisibility = () => {
@@ -91,15 +110,21 @@ export default function Home() {
     forceVisibility();
     const visibilityInterval = setInterval(forceVisibility, 500);
     
-    return () => clearInterval(visibilityInterval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(visibilityInterval);
+    };
   }, []);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
-      {/* 3D Scene (fills entire viewport) */}
-      <div className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }}>
-        <Scene />
+    <div className="relative">
+      {/* Scrollable content - height determines how much scrolling is available */}
+      <div className="h-[500vh] w-full">
+        {/* This creates the scroll height but is invisible */}
       </div>
+      
+      {/* Only mount 3D content after initial render to prevent hydration issues */}
+      {mounted && <SceneContainer />}
       
       {/* Content Overlay - with higher z-index and ref for forced visibility */}
       <div 
@@ -210,10 +235,10 @@ export default function Home() {
             mind.
           </div>
         </div>
+        
+        {/* HTML content for scrollytelling */}
+        <HtmlContent />
       </div>
-      
-      {/* Next.js Button Hider */}
-      <ButtonHider />
     </div>
   );
 }

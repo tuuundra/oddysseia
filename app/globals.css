@@ -141,20 +141,26 @@
 
   /* Scrollbar styling */
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 0; /* Hide scrollbar completely */
+    display: none; /* Additional hiding */
   }
   
   ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
+    background: transparent;
   }
   
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 255, 204, 0.3);
-    border-radius: 10px;
+    background: transparent;
+    border-radius: 0;
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 255, 204, 0.5);
+    background: transparent;
+  }
+  
+  /* Hide scrollbars for Firefox */
+  html {
+    scrollbar-width: none;
   }
 }
 
