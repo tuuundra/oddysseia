@@ -11,6 +11,7 @@ import FracturedSimpleRock from './FracturedSimpleRock';
 import FracturedGLBRock from './FracturedGLBRock';
 import PineTree from './PineTree';
 import { FBXLoader } from 'three-stdlib';
+import Stumpington from './Stumpington';
 
 
 // Custom shader for the fluid effect
@@ -768,6 +769,25 @@ const Fog = () => {
   return null;
 };
 
+// Custom environment settings component that handles day/night transitions
+const EnvironmentSettings = ({ isDayMode }: { isDayMode: boolean }) => {
+  useEffect(() => {
+    // Create day/night environment effect
+    const scene = document.querySelector('canvas')?.parentElement;
+    if (scene) {
+      if (isDayMode) {
+        // Daytime sky - bright blue gradient
+        scene.style.background = 'linear-gradient(to bottom, #87CEEB 0%, #E0F7FF 100%)';
+      } else {
+        // Nighttime sky - dark blue gradient
+        scene.style.background = 'linear-gradient(to bottom, #111830 0%, #2a3045 100%)';
+      }
+    }
+  }, [isDayMode]);
+  
+  return null;
+};
+
 // Debug component for orbit controls
 const OrbitDebugger = () => {
   const { camera } = useThree();
@@ -1001,7 +1021,306 @@ const generateRockFragments = () => {
 // Generate all rock fragments
 const rockFragments = generateRockFragments();
 
+// Free Camera with controls for navigation
+const FreeCameraControls = ({ isActive }: { isActive: boolean }) => {
+  const { camera, gl } = useThree();
+  const isLocked = useRef(false);
+  const mouseSensitivity = useRef(0.002); // Adjust for faster/slower mouse look
+  const lastMousePosition = useRef({ x: 0, y: 0 });
+  const mouseControlEnabled = useRef(true); // Track if mouse control is enabled
+  
+  // Store initial camera position when switching to free camera
+  const initialCameraState = useRef({
+    position: new THREE.Vector3(),
+    rotation: new THREE.Euler(),
+  });
+  
+  // Track key states for WASD movement
+  const keys = useRef({
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    shift: false, // For speed boost
+  });
+  
+  // Camera movement settings
+  const moveSpeed = useRef(0.3); // Base movement speed
+  const direction = useRef(new THREE.Vector3()); // Movement direction
+  
+  // Handle mouse movement for camera rotation with pointer lock
+  const handleMouseMove = (event: MouseEvent) => {
+    if (!isActive || !mouseControlEnabled.current) return;
+    
+    // Set Euler rotation order to YXZ for proper FPS camera behavior
+    camera.rotation.order = 'YXZ';
+    
+    if (isLocked.current) {
+      // Pointer lock mode - use movement deltas for precise control
+      const { movementX, movementY } = event;
+      
+      // Horizontal rotation (turning left/right)
+      camera.rotation.y -= movementX * mouseSensitivity.current;
+      
+      // Vertical rotation (looking up/down) - limit to avoid flipping
+      // Invert Y-axis so that moving mouse up looks up
+      const newXRotation = camera.rotation.x - movementY * mouseSensitivity.current;
+      const maxPitch = Math.PI / 2 - 0.05; // Prevent exactly 90° which can cause issues
+      camera.rotation.x = Math.max(-maxPitch, Math.min(maxPitch, newXRotation));
+    } else {
+      // Normal mouse mode - calculate deltas from position changes
+      const { clientX, clientY } = event;
+      const deltaX = clientX - lastMousePosition.current.x;
+      const deltaY = clientY - lastMousePosition.current.y;
+      
+      if (lastMousePosition.current.x !== 0 || lastMousePosition.current.y !== 0) {
+        // Horizontal rotation (turning left/right)
+        camera.rotation.y -= deltaX * mouseSensitivity.current * 0.5;
+        
+        // Vertical rotation (looking up/down) - limit to avoid flipping
+        // Invert Y-axis so that moving mouse up looks up
+        const newXRotation = camera.rotation.x - deltaY * mouseSensitivity.current * 0.5;
+        const maxPitch = Math.PI / 2 - 0.05;
+        camera.rotation.x = Math.max(-maxPitch, Math.min(maxPitch, newXRotation));
+      }
+      
+      // Update last position
+      lastMousePosition.current.x = clientX;
+      lastMousePosition.current.y = clientY;
+    }
+  };
+  
+  // Set up controls when free camera becomes active
+  useEffect(() => {
+    if (isActive) {
+      // Store current camera state before switching to free camera
+      initialCameraState.current.position.copy(camera.position);
+      initialCameraState.current.rotation.copy(camera.rotation);
+      
+      // Ensure camera is oriented correctly when first entering free camera mode
+      camera.up.set(0, 1, 0); // Make sure up vector is correct
+      camera.rotation.order = 'YXZ'; // Set proper rotation order for FPS controls
+      
+      // Reset control state
+      mouseControlEnabled.current = true;
+      
+      // Request pointer lock when activated
+      const canvas = gl.domElement;
+      canvas.requestPointerLock = canvas.requestPointerLock || 
+                                 (canvas as any).mozRequestPointerLock ||
+                                 (canvas as any).webkitRequestPointerLock;
+      
+      // Function to handle lock change
+      const lockChangeAlert = () => {
+        if (document.pointerLockElement === canvas || 
+            (document as any).mozPointerLockElement === canvas || 
+            (document as any).webkitPointerLockElement === canvas) {
+          isLocked.current = true;
+          // Reset last mouse position when lock changes
+          lastMousePosition.current = { x: 0, y: 0 };
+        } else {
+          isLocked.current = false;
+          // When pointer lock is exited, disable mouse control
+          mouseControlEnabled.current = false;
+        }
+      };
+      
+      // Set up pointer lock event listeners
+      document.addEventListener('pointerlockchange', lockChangeAlert, false);
+      document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
+      document.addEventListener('webkitpointerlockchange', lockChangeAlert, false);
+      
+      // Activate pointer lock on click
+      const handleCanvasClick = () => {
+        if (isActive && !isLocked.current) {
+          // Re-enable mouse control when clicking
+          mouseControlEnabled.current = true; 
+          canvas.requestPointerLock();
+        }
+      };
+      
+      // Always track mouse regardless of pointer lock
+      document.addEventListener('mousemove', handleMouseMove, false);
+      canvas.addEventListener('click', handleCanvasClick);
+      
+      console.log("Free camera activated with WASD controls and mouse look");
+      
+      return () => {
+        // Clean up event listeners when component unmounts or mode is deactivated
+        document.removeEventListener('mousemove', handleMouseMove, false);
+        document.removeEventListener('pointerlockchange', lockChangeAlert, false);
+        document.removeEventListener('mozpointerlockchange', lockChangeAlert, false);
+        document.removeEventListener('webkitpointerlockchange', lockChangeAlert, false);
+        canvas.removeEventListener('click', handleCanvasClick);
+        
+        // Exit pointer lock if active
+        if (document.pointerLockElement === canvas) {
+          document.exitPointerLock = document.exitPointerLock || 
+                                    (document as any).mozExitPointerLock ||
+                                    (document as any).webkitExitPointerLock;
+          document.exitPointerLock();
+        }
+        
+        // Reset mouse tracking
+        lastMousePosition.current = { x: 0, y: 0 };
+        mouseControlEnabled.current = false;
+        isLocked.current = false;
+        
+        // Reset key states
+        Object.keys(keys.current).forEach(key => {
+          keys.current[key as keyof typeof keys.current] = false;
+        });
+        
+        // Restore original camera state when exiting
+        camera.position.copy(initialCameraState.current.position);
+        camera.rotation.copy(initialCameraState.current.rotation);
+      };
+    }
+  }, [isActive, camera, gl.domElement]);
+  
+  // Add key binding for camera reset
+  useEffect(() => {
+    if (!isActive) return;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only process keys if free camera is active
+      switch(event.key.toLowerCase()) {
+        case 'w': keys.current.w = true; break;
+        case 'a': keys.current.a = true; break;
+        case 's': keys.current.s = true; break;
+        case 'd': keys.current.d = true; break;
+        case 'shift': keys.current.shift = true; break;
+        // When ESC is pressed, exit pointer lock and disable mouse control
+        case 'escape': 
+          mouseControlEnabled.current = false;
+          if (document.pointerLockElement === gl.domElement) {
+            document.exitPointerLock();
+          }
+          break;
+        // Add reset functionality - press R to reset camera orientation
+        case 'r':
+          // Reset camera orientation but keep position
+          camera.up.set(0, 1, 0);
+          camera.rotation.order = 'YXZ'; // Maintain proper rotation order
+          camera.rotation.set(0, 0, 0);
+          break;
+      }
+    };
+    
+    const handleKeyUp = (event: KeyboardEvent) => {
+      switch(event.key.toLowerCase()) {
+        case 'w': keys.current.w = false; break;
+        case 'a': keys.current.a = false; break;
+        case 's': keys.current.s = false; break;
+        case 'd': keys.current.d = false; break;
+        case 'shift': keys.current.shift = false; break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isActive, gl.domElement, camera]);
+  
+  // Handle camera movement based on WASD keys
+  useFrame((state, delta) => {
+    if (!isActive) return;
+    
+    // Calculate movement directions based on camera orientation
+    // Use quaternion-based approach for more accurate direction vectors
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    forward.y = 0; // Lock vertical movement to horizontal plane
+    forward.normalize();
+    
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    right.y = 0; // Lock vertical movement to horizontal plane
+    right.normalize();
+    
+    // Reset direction
+    direction.current.set(0, 0, 0);
+    
+    // Apply movement based on keys pressed
+    if (keys.current.w) direction.current.add(forward);
+    if (keys.current.s) direction.current.sub(forward);
+    if (keys.current.a) direction.current.sub(right);
+    if (keys.current.d) direction.current.add(right);
+    
+    // Normalize direction vector to prevent faster diagonal movement
+    if (direction.current.lengthSq() > 0) {
+      direction.current.normalize();
+      
+      // Apply speed, with shift for boost
+      const currentSpeed = keys.current.shift ? moveSpeed.current * 2.5 : moveSpeed.current;
+      
+      // Move camera
+      camera.position.addScaledVector(direction.current, currentSpeed * delta * 60);
+    }
+  });
+  
+  return null;
+};
+
 function Scene() {
+  // Add a state to track whether free camera mode is active
+  const [freeCameraActive, setFreeCameraActive] = useState(false);
+  // Add day/night mode state - synced with camera mode
+  const [isDayMode, setIsDayMode] = useState(false);
+  
+  // Add keyboard event listener for 'p' key to toggle free camera mode and day/night
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'p' || event.key === 'P') {
+        // Use functional updates to avoid needing freeCameraActive in dependencies
+        setFreeCameraActive(prev => {
+          const newState = !prev;
+          // Set day mode to match free camera state
+          setIsDayMode(newState);
+          console.log(`Free camera mode ${newState ? 'activated' : 'deactivated'}, ${newState ? 'Day' : 'Night'} mode`);
+          return newState;
+        });
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []); // Empty dependency array since we use functional updates
+  
+  // Add a visual indicator when free camera mode is active
+  const FreeCameraIndicator = () => {
+    return freeCameraActive ? (
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        background: 'rgba(0,0,0,0.5)',
+        color: 'white',
+        padding: '8px 12px',
+        borderRadius: '4px',
+        fontFamily: 'monospace',
+        zIndex: 1000
+      }}>
+        Free Camera Mode - Daytime (WASD to move, Mouse to look, Shift to sprint)
+        <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+          {document.pointerLockElement ? 
+            "Mouse locked for precise control - Press ESC to release" : 
+            "Click to activate mouse look (currently inactive)"}
+        </div>
+        <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+          Press 'R' to reset camera orientation if view is incorrect
+        </div>
+        <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+          Press 'P' to exit and return to night view
+        </div>
+      </div>
+    ) : null;
+  };
+
   return (
     <div style={{ 
       position: 'absolute', 
@@ -1014,6 +1333,9 @@ function Scene() {
       zIndex: 0,
       pointerEvents: 'auto'
     }}>
+      {/* Free camera mode indicator */}
+      <FreeCameraIndicator />
+      
       <Canvas
         style={{ 
           display: 'block', 
@@ -1033,42 +1355,66 @@ function Scene() {
         }}
         shadows
       >
-        <color attach="background" args={['#1a2435']} />
-        <fog attach="fog" args={['#1a2435', 10, 30]} />
+        {/* Set background and fog based on day/night mode */}
+        <color attach="background" args={[isDayMode ? '#87CEEB' : '#1a2435']} />
+        {!isDayMode && <fog attach="fog" args={['#1a2435', 10, 30]} />}
         
-        {/* Main scene content - reduced intensity for evening */}
-        <ambientLight intensity={0.2} color="#3a4a6a" />
-        <directionalLight 
-          intensity={1.0} 
-          position={[15, 20, 10]} 
-          color="#8090c0" 
-          castShadow 
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-far={50}
-          shadow-camera-left={-20}
-          shadow-camera-right={20}
-          shadow-camera-top={20}
-          shadow-camera-bottom={-20}
-        />
-        <directionalLight intensity={0.2} position={[-10, -5, 5]} color="#4a5a8a" />
+        {/* Main scene lighting - adjust based on day/night mode */}
+        {isDayMode ? (
+          // Daytime lighting
+          <>
+            <ambientLight intensity={0.6} color="#ffffff" />
+            <directionalLight 
+              intensity={1.5} 
+              position={[15, 20, 10]} 
+              color="#fffaf0" 
+              castShadow 
+              shadow-mapSize-width={2048}
+              shadow-mapSize-height={2048}
+              shadow-camera-far={50}
+              shadow-camera-left={-20}
+              shadow-camera-right={20}
+              shadow-camera-top={20}
+              shadow-camera-bottom={-20}
+            />
+            <hemisphereLight intensity={0.5} color="#87CEEB" groundColor="#228B22" />
+          </>
+        ) : (
+          // Nighttime lighting (original)
+          <>
+            <ambientLight intensity={0.2} color="#3a4a6a" />
+            <directionalLight 
+              intensity={1.0} 
+              position={[15, 20, 10]} 
+              color="#8090c0" 
+              castShadow 
+              shadow-mapSize-width={2048}
+              shadow-mapSize-height={2048}
+              shadow-camera-far={50}
+              shadow-camera-left={-20}
+              shadow-camera-right={20}
+              shadow-camera-top={20}
+              shadow-camera-bottom={-20}
+            />
+            <directionalLight intensity={0.2} position={[-10, -5, 5]} color="#4a5a8a" />
+          </>
+        )}
         
-        {/* Add a spotlight to highlight the rock - warmer color for evening light */}
+        {/* Add a spotlight to highlight the rock - adjust based on day/night mode */}
         <spotLight
           position={[15, 10, -5]}
           angle={0.3}
           penumbra={0.8}
-          intensity={0.8}
-          color="#d0a070"
+          intensity={isDayMode ? 0.4 : 0.8}
+          color={isDayMode ? "#ffffff" : "#d0a070"}
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
         
-        {/* Use FloatingCamera instead of OrbitDebugger */}
-        <FloatingCamera />
-        {/* Comment out the orbit debugger */}
-        {/* <OrbitDebugger /> */}
+        {/* Toggle between floating camera and free camera based on state */}
+        {!freeCameraActive && <FloatingCamera />}
+        <FreeCameraControls isActive={freeCameraActive} />
         
         {/* Mountain landscape from GLTF */}
         <MountainLandscape />
@@ -1080,13 +1426,13 @@ function Scene() {
         
         {/* Floating fractured rock model */}
         <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
-          {/* Evening lighting for the rock */}
+          {/* Evening/daytime lighting for the rock */}
           <spotLight
             position={[3, 5, 3]}
             angle={0.6}
             penumbra={0.7}
-            intensity={1.5}
-            color="#e08060"
+            intensity={isDayMode ? 0.8 : 1.5}
+            color={isDayMode ? "#ffffff" : "#e08060"}
             castShadow
             distance={30}
           />
@@ -1094,8 +1440,8 @@ function Scene() {
             position={[-2, -3, 5]}
             angle={0.7}
             penumbra={0.8}
-            intensity={0.8}
-            color="#6070b0"
+            intensity={isDayMode ? 0.4 : 0.8}
+            color={isDayMode ? "#e0e0e0" : "#6070b0"}
             castShadow={false}
             distance={25}
           />
@@ -1103,20 +1449,41 @@ function Scene() {
           {/* Center light source radiating through cracks */}
           <pointLight 
             position={[0, 0.25, 0.15]} 
-            intensity={20} 
-            color="#c8ecec" 
-            distance={100.5}
+            intensity={isDayMode ? 10 : 20} 
+            color={isDayMode ? "#a0ffff" : "#c8ecec"} 
+            distance={isDayMode ? 80 : 100.5}
             decay={0.2}
           />
           
           <FracturedGLBRock />
         </group>
         
+        {/* Stumpington tree stump - placed near the floating rock */}
+        <group position={[22, -3.9, -20]} rotation={[0.1, Math.PI / 3, 0.05]}>
+          <Stumpington scale={[1.8, 0.7, 1.8]} />
+          
+          {/* Add spotlight to illuminate the stump */}
+          <spotLight
+            position={[0, 3, 0]}
+            angle={0.5}
+            penumbra={0.9}
+            intensity={isDayMode ? 0.3 : 0.8}
+            color={isDayMode ? "#ffffff" : "#d0a070"}
+            castShadow
+            distance={10}
+          />
+          {/* Add a subtle glow effect to the stump */}
+          <pointLight
+            position={[0, 0.2, 0]}
+            intensity={isDayMode ? 0.2 : 0.4}
+            color={isDayMode ? "#654321" : "#4d2e10"}
+            distance={5}
+            decay={2}
+          />
+        </group>
+        
         {/* Pine Tree to the right of the floating rock - close to camera for visibility */}
         <group position={[27, -3, -19]} rotation={[0, Math.PI / 5, 0]}>
-         
-          
-          {/* Try different scale */}
           <PineTree scale={[2, 2, 2]} />
           
           {/* Add spotlight to illuminate the tree */}
@@ -1124,8 +1491,8 @@ function Scene() {
             position={[0, 8, 0]}
             angle={0.6}
             penumbra={0.8}
-            intensity={2.0}
-            color="#c0d0ff"
+            intensity={isDayMode ? 0.8 : 2.0}
+            color={isDayMode ? "#ffffff" : "#c0d0ff"}
             castShadow
             distance={20}
           />
@@ -1146,13 +1513,13 @@ function Scene() {
         />
         
         {/* Environment map for better PBR materials */}
-        <Environment preset="night" background={false} />
+        <Environment preset={isDayMode ? "sunset" : "night"} background={false} />
         
-        {/* Snow effects */}
-        <SimpleSnow />
+        {/* Snow effects only visible at night */}
+        {!isDayMode && <SimpleSnow />}
         
         {/* Environment settings */}
-        <Fog />
+        <EnvironmentSettings isDayMode={isDayMode} />
     </Canvas>
     </div>
   );

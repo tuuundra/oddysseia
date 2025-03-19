@@ -39,6 +39,12 @@ const FracturedGLBRock = () => {
   const isMouseMoving = useRef(false);
   const lastMouseMoveTime = useRef(0);
   
+  // For momentum effect
+  const lastHoverTime = useRef(0);
+  const hasMomentum = useRef(false);
+  const momentumPhase = useRef(0); // 0-1 value for momentum curve
+  const lastHoverPoint = useRef(new THREE.Vector3(0, 0, 0));
+  
   // Track all fragments for easy access during hover effects
   const fragmentsMap = useRef(new Map<string, {
     mesh: THREE.Mesh,
@@ -207,8 +213,8 @@ const FracturedGLBRock = () => {
           // Adjust explosion amount based on position - less explosion for fragments near center
           // This will help ensure the center light source is better hidden
           const distFromCenter = worldFragmentCenter.distanceTo(centerPoint.current);
-          const maxExplosion = 0.04;  // Slightly larger overall explosion
-          const minExplosion = 0.01;  // Much smaller explosion for center pieces
+          const maxExplosion = 0.001;  // REDUCED from 0.04 for tighter default spacing
+          const minExplosion = 0.0005;  // REDUCED from 0.01 for center pieces
           
           // Calculate explosion amount - closer to center = less explosion
           const explosionFactor = Math.min(distFromCenter * 2, 1.0); // Scale factor
@@ -360,37 +366,70 @@ const FracturedGLBRock = () => {
     // Calculate hover positions for all fragments
     const hoverPoint = hoveredMesh ? new THREE.Vector3().setFromMatrixPosition(hoveredMesh.matrixWorld) : null;
     
+    // If we have a hover point, update the last hover time and position
+    if (hoverPoint) {
+      lastHoverTime.current = performance.now();
+      lastHoverPoint.current.copy(hoverPoint);
+      hasMomentum.current = true;
+      momentumPhase.current = 0; // Reset momentum phase during active hover
+    }
+    
+    // Check if we're in momentum phase (recently hovered but not currently hovering)
+    const timeSinceHover = performance.now() - lastHoverTime.current;
+    const inMomentumPhase = hasMomentum.current && !hoverPoint && timeSinceHover < 400; // REDUCED from 1000ms to 400ms
+    
+    // Handle momentum phase - continuation of expansion after mouse leaves
+    if (inMomentumPhase) {
+      // Progress from 0 to 1 over the momentum duration
+      momentumPhase.current = Math.min(timeSinceHover / 400, 1); // UPDATED to match new duration
+      
+      // First half of momentum increases expansion, second half decreases
+      if (momentumPhase.current <= 0.2) { // REDUCED from 0.3 to 0.2 - shorter expansion phase
+        // Initial 20% of time - continue expanding to max
+      } else {
+        // Remaining 80% - quickly cool off
+      }
+    } else if (!hoverPoint && hasMomentum.current) {
+      // We've passed the momentum phase, reset
+      hasMomentum.current = false;
+    }
+    
     // Max expansion amount when hovering
-    const maxExpansion = 0.15;
+    const maxExpansion = .20; // INCREASED from 0.15 for more dramatic mouse reactivity
     
     // Max distance for influence spreading to nearby fragments
-    const influenceRadius = 1.8; // Increased radius for wider effect area
+    const influenceRadius = 2.0; // INCREASED from 1.8 for wider effect area
     
     // Animation speed for expansion/contraction - much slower overall
     const animSpeed = isMouseMoving.current ? 0.04 : 0.01; // Reduced by 50% for slower animation
     
-    // Smooth interpolation of the hover point
+    // Smooth interpolation of the hover point with momentum
     if (hoverPoint) {
-      // If mouse has been still for a while, lock the target position completely
-      // This prevents micromovements in the hover detection that can cause jitters
+      // Regular hover behavior (unchanged)
       if (!isMouseMoving.current) {
-        if (performance.now() - lastMouseMoveTime.current > 500) { // Slightly longer threshold for complete position lock
+        if (performance.now() - lastMouseMoveTime.current > 500) {
           // After 500ms of no movement, just maintain the current position
-          // Don't update targetHoverPoint at all
         } else {
-          // During the initial stillness period, allow small adjustments
           targetHoverPoint.current.copy(hoverPoint);
-          lastMousePos.current.lerp(targetHoverPoint.current, 0.15); // Slightly slower adjustment (reduced from 0.2)
+          lastMousePos.current.lerp(targetHoverPoint.current, 0.15);
         }
       } else {
-        // Normal movement interpolation - smoother with slowed down lerp
         targetHoverPoint.current.copy(hoverPoint);
-        lastMousePos.current.lerp(targetHoverPoint.current, 0.06); // Significantly slower interpolation (reduced from 0.1)
+        lastMousePos.current.lerp(targetHoverPoint.current, 0.06);
       }
+    } else if (inMomentumPhase) {
+      // During momentum phase - keep the last hover point, but apply momentum curve
+      // During initial 30% of momentum, continue moving toward the target slightly
+      if (momentumPhase.current <= 0.3) {
+        // Continue slight movement in direction of last movement
+        targetHoverPoint.current.copy(lastHoverPoint.current);
+        lastMousePos.current.lerp(targetHoverPoint.current, 0.05);
+      }
+      // During momentum cooldown, do nothing - maintain last position
     } else {
-      // No hover, gradually move target away
+      // No hover and no momentum, gradually reset
       targetHoverPoint.current.set(0, 0, 0);
-      lastMousePos.current.lerp(targetHoverPoint.current, 0.02); // Even slower transition back (reduced from 0.03)
+      lastMousePos.current.lerp(targetHoverPoint.current, 0.02);
     }
     
     // Update all fragments positions based on hover state
@@ -418,8 +457,30 @@ const FracturedGLBRock = () => {
           // Use a cubic falloff that gives more expansion to more fragments
           const normDist = distToHover / influenceRadius;
           // Softer, smoother falloff curve with more gradual transition
-          const influence = Math.pow(1 - normDist, 3); 
+          const influence = Math.pow(1 - normDist, 2.5); // CHANGED from cubic (3) to 2.5 for wider effect
           targetExpansion = maxExpansion * influence * 0.9; // Stronger effect for peripheral fragments
+        }
+      } else if (inMomentumPhase) {
+        // In momentum phase, calculate based on last hover position
+        const fragWorldPos = new THREE.Vector3();
+        mesh.getWorldPosition(fragWorldPos);
+        
+        // Distance from this fragment to the last hover point
+        const distToLastHover = fragWorldPos.distanceTo(lastMousePos.current);
+        
+        if (distToLastHover < influenceRadius) {
+          // During momentum phase, adjust expansion based on phase
+          const normDist = distToLastHover / influenceRadius;
+          const influence = Math.pow(1 - normDist, 2.5);
+          
+          if (momentumPhase.current <= 0.3) {
+            // First 30% of momentum - increase to 110% of max expansion for extra dramatic effect
+            targetExpansion = maxExpansion * influence * 1.1;
+          } else {
+            // Remaining 70% - gradually cool off with a smooth curve
+            const cooldownFactor = 1 - ((momentumPhase.current - 0.3) / 0.7);
+            targetExpansion = maxExpansion * influence * cooldownFactor;
+          }
         }
       }
       

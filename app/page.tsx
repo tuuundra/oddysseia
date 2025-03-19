@@ -14,7 +14,7 @@ const GlitchLogo = () => {
       onMouseLeave={() => setIsHovering(false)}
     >
       <h1 className={`text-white ${isHovering ? 'glitch-text' : ''} text-glow-strong`} data-text="ODDYSSEIA">
-        ODDYSSEIA
+        NORDWEG
       </h1>
     </div>
   );
@@ -147,7 +147,7 @@ export default function Home() {
             }} 
             className="font-mono leading-relaxed pl-1"
           >
-            Oddysseia, Inc.
+            Nordweg, Inc.
           </div>
           <div style={{ 
               color: 'white', 
@@ -202,12 +202,12 @@ export default function Home() {
             }} 
             className="font-mono"
           >
-            Our mission is to<br/>
-            create the largest<br/>
-            onchain community,<br/>
-            driving the<br/>
-            consumer crypto<br/>
-            revolution.
+            backpacks of classic luxury <br/>
+            with a rugged foundation.<br/>
+            embrace the elements,<br/>
+            explore a cleaner<br/>
+            state of <br/>
+            mind.
           </div>
         </div>
       </div>
