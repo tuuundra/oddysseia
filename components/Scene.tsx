@@ -9,6 +9,7 @@ import FracturedRealRock from './FracturedRealRock';
 import SimpleRock from './SimpleRock';
 import FracturedSimpleRock from './FracturedSimpleRock';
 import FracturedGLBRock from './FracturedGLBRock';
+import PineTree from './PineTree';
 import { FBXLoader } from 'three-stdlib';
 
 
@@ -1110,6 +1111,39 @@ function Scene() {
           
           <FracturedGLBRock />
         </group>
+        
+        {/* Pine Tree to the right of the floating rock - close to camera for visibility */}
+        <group position={[27, -3, -19]} rotation={[0, Math.PI / 5, 0]}>
+         
+          
+          {/* Try different scale */}
+          <PineTree scale={[2, 2, 2]} />
+          
+          {/* Add spotlight to illuminate the tree */}
+          <spotLight
+            position={[0, 8, 0]}
+            angle={0.6}
+            penumbra={0.8}
+            intensity={2.0}
+            color="#c0d0ff"
+            castShadow
+            distance={20}
+          />
+        </group>
+        
+        {/* Pine Tree */}
+        <PineTree 
+          position={[7, -1.1, -8]} 
+          scale={[8, 8, 8]} 
+          rotation={[0, 0, 0]} 
+        />
+        
+        {/* Second Pine Tree - positioned right next to the first one */}
+        <PineTree 
+          position={[15, -1.5, -10]} 
+          scale={[7, 7.5, 7]} 
+          rotation={[0, Math.PI / 6, 0]} 
+        />
         
         {/* Environment map for better PBR materials */}
         <Environment preset="night" background={false} />
