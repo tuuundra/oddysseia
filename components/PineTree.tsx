@@ -25,8 +25,8 @@ const PineTree = ({
   const [loadingStatus, setLoadingStatus] = useState<string>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  // Load the GLB model - using furtree.glb
-  const { scene } = useGLTF('/furtree.glb');
+  // Load the GLB model - using furtreelowres.glb
+  const { scene } = useGLTF('/furtreelowres.glb');
   
   // Clone the scene to avoid reference issues
   const treeModel = scene?.clone();
@@ -42,7 +42,7 @@ const PineTree = ({
   // Handle errors with window error event
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
-      if (event.message.includes('furtree.glb')) {
+      if (event.message.includes('furtreelowres.glb')) {
         console.error('Failed to load tree model:', event);
         setLoadingStatus('error');
         setErrorMessage(event.message);
@@ -121,8 +121,8 @@ const PineTree = ({
 
 // Preload the model to avoid loading delays
 try {
-  useGLTF.preload('/furtree.glb');
-  console.log('Preloading furtree.glb');
+  useGLTF.preload('/furtreelowres.glb');
+  console.log('Preloading furtreelowres.glb');
 } catch (error) {
   console.error('Error preloading tree model:', error);
 }
