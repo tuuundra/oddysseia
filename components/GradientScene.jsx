@@ -137,11 +137,11 @@ function OscillatingGradient() {
     const material = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
-        // Colors updated to match first reference image - more gray-blue tones
-        colorA: { value: new THREE.Color('#9DA3BE') }, // Gray-blue
-        colorB: { value: new THREE.Color('#B0B5C8') }, // Light gray-blue
-        colorC: { value: new THREE.Color('#AEB3CA') }, // Mid gray-blue
-        colorD: { value: new THREE.Color('#959BB5') }  // Slightly darker gray-blue
+        // Colors updated from the reference image
+        colorA: { value: new THREE.Color('#808692') }, // Oslo Gray
+        colorB: { value: new THREE.Color('#D9DBE0') }, // Iron
+        colorC: { value: new THREE.Color('#B7BCCC') }, // Heather
+        colorD: { value: new THREE.Color('#BBC4CB') }  // Loblolly
       },
       vertexShader: `
         varying vec2 vUv;
@@ -206,6 +206,165 @@ function OscillatingGradient() {
   
   return (
     <mesh ref={meshRef} position={[0, 0, -1]} renderOrder={-1000}>
+      <planeGeometry args={[40, 40]} />
+    </mesh>
+  );
+}
+
+// Fluid, organic diffusing color layer that creates liquid-like transitions
+function DiffusingColorLayer() {
+  const meshRef = useRef();
+  const materialRef = useRef();
+  const { viewport } = useThree();
+  
+  // Create shader material for the fluid effect
+  useEffect(() => {
+    if (!meshRef.current) return;
+    
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        resolution: { value: new THREE.Vector2(viewport.width, viewport.height) },
+        lightColor: { value: new THREE.Color('#C6CAD1') }, // Light color
+        darkColor: { value: new THREE.Color('#A9ADB7') }   // Even less contrast (was #848D9F)
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform vec2 resolution;
+        uniform vec3 lightColor;
+        uniform vec3 darkColor;
+        varying vec2 vUv;
+        
+        // Simplex-like 2D noise
+        float noise(vec2 st) {
+          vec2 i = floor(st);
+          vec2 f = fract(st);
+          
+          // Cubic Hermite interpolation for smoother gradients
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          
+          float a = sin(dot(i, vec2(127.1, 311.7))) * 43758.5453123;
+          float b = sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123;
+          float c = sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123;
+          float d = sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123;
+          
+          return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+        
+        // Fractional Brownian Motion (fBm) for layered noise
+        float fbm(vec2 st) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          float frequency = 1.0;
+          
+          // Add several octaves of noise with different scales
+          // Use fewer octaves for smoother, more subtle effect
+          for (int i = 0; i < 3; i++) {
+            value += amplitude * (noise(st * frequency) * 0.5 + 0.5);
+            frequency *= 1.6; // Even gentler frequency change (was 1.8)
+            amplitude *= 0.35; // Reduced amplitude for less intensity
+            
+            // Use a different rotation angle for each octave to break up patterns
+            float angle = 0.3 + float(i) * 0.2;
+            st = mat2(cos(angle), sin(angle), -sin(angle), cos(angle)) * st;
+          }
+          
+          return value;
+        }
+        
+        // Additional disruption noise to break up any visible patterns
+        float disruptionNoise(vec2 st, float time) {
+          // Use a very large scale noise that moves independently
+          float n1 = noise(st * 0.15 + vec2(time * 0.011, time * 0.017));
+          float n2 = noise(st * 0.07 - vec2(time * 0.019, time * 0.013));
+          
+          // Combine with a very subtle contribution
+          return n1 * 0.6 + n2 * 0.4;
+        }
+        
+        void main() {
+          // Get aspect-corrected UV coordinates
+          vec2 uv = vUv;
+          float aspect = resolution.x / resolution.y;
+          
+          // Apply a subtle rotation to the UVs to avoid diagonal patterns aligned with the screen
+          float rotationAngle = 0.2; // Subtle rotation
+          mat2 rotationMatrix = mat2(cos(rotationAngle), sin(rotationAngle), -sin(rotationAngle), cos(rotationAngle));
+          uv = rotationMatrix * (uv - 0.5) + 0.5;
+          
+          // Apply aspect correction after rotation
+          uv.x *= aspect;
+          
+          // Create extremely slow moving, organic fluid effect
+          float slowTime = time * 0.015; // Even slower movement (was 0.02)
+          
+          // Create multiple layers of moving noise with much larger scale for gentler transitions
+          // Use prime-number-based scales and speeds to reduce repeating patterns
+          float n1 = fbm(uv * 0.17 + vec2(slowTime * 0.023, slowTime * 0.031)); // Prime-based values
+          float n2 = fbm(uv * 0.23 - vec2(slowTime * 0.037, slowTime * 0.029)); // Prime-based values
+          float n3 = fbm(uv * 0.41 + vec2(-slowTime * 0.019, slowTime * 0.013)); // Prime-based values
+          
+          // Combine noise layers with more weight on the smoothest, largest scale noise
+          float combinedNoise = n1 * 0.5 + n2 * 0.3 + n3 * 0.2;
+          
+          // Add the disruption noise to break up any visible patterns
+          float disruption = disruptionNoise(uv, slowTime);
+          combinedNoise = mix(combinedNoise, disruption, 0.2); // Subtle influence
+          
+          // Create much more gradual fluid-like contours with extremely wide transitions
+          // Use smoothstep with very wide range for extremely soft edges
+          float fluidPattern = smoothstep(0.2, 0.8, combinedNoise); // Even wider range (was 0.25-0.75)
+          
+          // Add extremely gentle pulsing effect
+          float pulse = sin(slowTime * 0.029) * 0.5 + 0.5; // Prime-based frequency
+          fluidPattern = mix(fluidPattern, combinedNoise, pulse * 0.06); // Even less blend (was 0.08)
+          
+          // Create a radial gradient to ensure edges fade away from center
+          vec2 centeredUV = uv / aspect - vec2(0.5 / aspect, 0.5);
+          float distFromCenter = length(centeredUV) * 1.5; // Scaled to reach corners
+          float radialFade = 1.0 - smoothstep(0.5, 1.0, distFromCenter);
+          
+          // Mix between colors based on the fluid pattern
+          // Use more subtle power curves for extremely gentle gradients
+          vec3 color;
+          
+          // Significantly reduce strength of dark areas
+          float darkFactor = pow(smoothstep(0.0, 1.0, fluidPattern), 2.0) * 0.08; // Even more subtle (was 0.12)
+          darkFactor *= radialFade; // Fade out near edges
+          
+          color = mix(lightColor, darkColor, darkFactor);
+          
+          // Final alpha controls overall effect intensity
+          // Use extremely low opacity for just a hint of effect
+          gl_FragColor = vec4(color, 0.08); // Even lower opacity (was 0.12)
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.NormalBlending
+    });
+    
+    materialRef.current = material;
+    meshRef.current.material = material;
+  }, [viewport]);
+  
+  // Update the time uniform
+  useFrame(({ clock }) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.time.value = clock.getElapsedTime();
+    }
+  });
+  
+  return (
+    <mesh ref={meshRef} position={[0, 0, -0.95]} renderOrder={-1050}>
       <planeGeometry args={[40, 40]} />
     </mesh>
   );
@@ -396,6 +555,7 @@ export default function GradientScene() {
       <fog attach="fog" color="#959BB5" near={5} far={35} />
       <ambientLight intensity={1.5} />
       <OscillatingGradient />
+      <DiffusingColorLayer />
       <GlowingDotGrid />
     </>
   );
