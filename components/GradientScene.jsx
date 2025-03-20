@@ -4,6 +4,7 @@ import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useSimpleScroll } from './SimpleScrollyControls';
+import EnchantedCrystal from './EnchantedCrystal';
 
 // Camera controller for the gradient scene
 function GradientCameraController() {
@@ -557,6 +558,9 @@ export default function GradientScene() {
       <OscillatingGradient />
       <DiffusingColorLayer />
       <GlowingDotGrid />
+      
+      {/* Add the enchanted crystal to the scene */}
+      <EnchantedCrystal />
     </>
   );
 } 
