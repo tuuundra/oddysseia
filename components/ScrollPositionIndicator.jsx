@@ -12,10 +12,10 @@ export default function ScrollPositionIndicator() {
     setShowRaw(prev => !prev);
   };
   
-  // Key transition points
-  const transitionStartPoint = 0.155;
-  const transitionEndPoint = 0.165;
-  const dotAppearancePoint = 0.167;
+  // Update transition points
+  const transitionStartPoint = 0.10;
+  const transitionEndPoint = 0.15;
+  const dotAppearancePoint = 0.125;
   
   // Calculate transition progress
   const transitionProgress = (() => {
@@ -32,6 +32,9 @@ export default function ScrollPositionIndicator() {
   const currentScene = transitionProgress < 0.5 ? "Original" : "Gradient";
   const transitionPercentage = Math.round(transitionProgress * 100);
   const dotsVisible = offset >= dotAppearancePoint;
+  
+  // Determine if mist transition is active
+  const isMistActive = isInTransition;
   
   return (
     <div 
@@ -78,7 +81,13 @@ export default function ScrollPositionIndicator() {
           color: isInTransition ? '#ffcc00' : '#00ff00',
           fontWeight: 'bold'
         }}>
-          Active Scene: {currentScene} {isInTransition ? `(FADING ${transitionPercentage}%)` : ''}
+          Active Scene: {currentScene} {isInTransition ? `(TRANSITION ${transitionPercentage}%)` : ''}
+        </div>
+        <div style={{ 
+          color: isMistActive ? '#00ccff' : '#888888',
+          fontStyle: isMistActive ? 'normal' : 'italic'
+        }}>
+          Mist Transition: {isMistActive ? 'ACTIVE' : 'INACTIVE'}
         </div>
         <div style={{ 
           color: transitionProgress < 1 ? '#888888' : (isAtDotAppearance ? '#00ccff' : (dotsVisible ? '#00ff00' : '#888888')),
@@ -90,8 +99,8 @@ export default function ScrollPositionIndicator() {
       
       {/* Transition points */}
       <div style={{ marginTop: '4px', fontSize: '10px', color: '#aaaaaa' }}>
-        <div>Fade Start: {transitionStartPoint}</div>
-        <div>Fade End: {transitionEndPoint}</div>
+        <div>Mist Start: {transitionStartPoint}</div>
+        <div>Mist End: {transitionEndPoint}</div>
         <div>Dots Appear: {dotAppearancePoint}</div>
       </div>
     </div>

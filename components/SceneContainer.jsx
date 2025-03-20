@@ -7,6 +7,7 @@ import { ScrollContext } from './SimpleScrollyControls';
 import SceneContent from './SceneContent';
 import ScrollPositionIndicator from './ScrollPositionIndicator';
 import GradientScene from './GradientScene';
+import MistTransition from './MistTransition';
 
 // Container that provides scroll context to the 3D scene
 export default function SceneContainer() {
@@ -40,8 +41,9 @@ export default function SceneContainer() {
   }, []);
   
   // Scene transition points
-  const transitionStartPoint = 0.155;
-  const transitionEndPoint = 0.165;
+  const transitionStartPoint = 0.10;
+  const transitionEndPoint = 0.15;
+  const mistTransitionDuration = transitionEndPoint - transitionStartPoint;
   
   // Calculate transition progress
   const transitionProgress = (() => {
@@ -52,13 +54,14 @@ export default function SceneContainer() {
     return (scrollData.offset - transitionStartPoint) / (transitionEndPoint - transitionStartPoint);
   })();
   
-  // Calculate opacity for each scene
-  const originalSceneOpacity = 1 - transitionProgress;
-  const gradientSceneOpacity = transitionProgress;
-  
-  // Determine if scenes should be in the DOM
-  const showOriginalScene = originalSceneOpacity > 0;
-  const showGradientScene = gradientSceneOpacity > 0;
+  // Calculate opacity for both scenes to ensure smooth crossfade with mist effect
+  const originalSceneOpacity = scrollData.offset < transitionStartPoint ? 1 : 
+                              scrollData.offset > transitionEndPoint ? 0 : 
+                              1 - transitionProgress;
+                              
+  const gradientSceneOpacity = scrollData.offset < transitionStartPoint ? 0 : 
+                              scrollData.offset > transitionEndPoint ? 1 : 
+                              transitionProgress;
   
   return (
     <div style={{ 
@@ -71,13 +74,12 @@ export default function SceneContainer() {
     }}>
       {/* Provide scroll data via context */}
       <ScrollContext.Provider value={scrollData}>
-        {/* Original scene canvas with fade out transition */}
+        {/* Original scene canvas - fades out during transition */}
         <div style={{ 
           position: 'absolute',
           width: '100%',
           height: '100%',
           opacity: originalSceneOpacity,
-          visibility: showOriginalScene ? 'visible' : 'hidden',
           transition: 'opacity 0.1s ease-out'
         }}>
           <Canvas
@@ -105,14 +107,13 @@ export default function SceneContainer() {
           </Canvas>
         </div>
         
-        {/* Gradient scene canvas with fade in transition */}
+        {/* Gradient scene canvas - fades in during transition */}
         <div style={{ 
           position: 'absolute',
           width: '100%',
           height: '100%',
           opacity: gradientSceneOpacity,
-          visibility: showGradientScene ? 'visible' : 'hidden',
-          transition: 'opacity 0.1s ease-in'
+          transition: 'opacity 0.1s ease-out'
         }}>
           <Canvas
             style={{ width: '100%', height: '100%' }}
@@ -132,6 +133,39 @@ export default function SceneContainer() {
             {/* The gradient scene */}
             <SimpleScrollySceneWrapper>
               <GradientScene />
+            </SimpleScrollySceneWrapper>
+          </Canvas>
+        </div>
+
+        {/* Mist transition as a separate canvas layer on top */}
+        <div style={{ 
+          position: 'absolute',
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none', // Allow clicking through to scenes
+          opacity: scrollData.offset >= transitionStartPoint - 0.01 && scrollData.offset <= transitionEndPoint + 0.01 ? 1 : 0,
+          transition: 'opacity 0.15s ease'
+        }}>
+          <Canvas
+            style={{ width: '100%', height: '100%' }}
+            camera={{ 
+              position: [0, 0, 10], 
+              fov: 45
+            }}
+            gl={{ 
+              antialias: true,
+              alpha: true,
+              stencil: false,
+              depth: true,
+              powerPreference: 'high-performance' 
+            }}
+            dpr={[1, 2]}
+          >
+            <SimpleScrollySceneWrapper>
+              <MistTransition 
+                transitionPoint={transitionStartPoint} 
+                duration={mistTransitionDuration}
+              />
             </SimpleScrollySceneWrapper>
           </Canvas>
         </div>

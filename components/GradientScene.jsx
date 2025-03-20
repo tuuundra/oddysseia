@@ -218,8 +218,8 @@ function GlowingDotGrid() {
   const circlesRef = useRef();
   const timeRef = useRef(0);
   
-  // Appearance threshold
-  const dotAppearancePoint = 0.167;
+  // Appearance threshold - changed to appear earlier
+  const dotAppearancePoint = 0.125;
   
   // Calculate grid visibility and opacity
   const gridOpacity = useMemo(() => {
