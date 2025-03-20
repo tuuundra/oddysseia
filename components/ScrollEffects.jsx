@@ -135,8 +135,11 @@ function RectDisplacement({ intensity }) {
     if (effectRef.current) {
       // Add a small threshold before effect begins (5% scroll)
       // Then scale between 5% and 30% for full effect
+      // Freeze the effect at 0.17 offset if scrolled past that point
       const threshold = 0.05;
-      const normalizedOffset = Math.max(0, (offset - threshold) / (0.3 - threshold));
+      const maxOffset = 0.17; // Lock effects at this offset value
+      const clampedOffset = Math.min(offset, maxOffset); // Never exceed 0.17
+      const normalizedOffset = Math.max(0, (clampedOffset - threshold) / (0.3 - threshold));
       const scaledOffset = Math.min(normalizedOffset, 1);
       effectRef.current.uniforms.get('uScroll').value = scaledOffset;
     }
@@ -254,12 +257,19 @@ function GradientChromatic({ intensity }) {
     if (effectRef.current) {
       effectRef.current.uniforms.get('uTime').value = clock.getElapsedTime();
       
-      // Add a small threshold before effect begins (5% scroll)
-      // Then scale between 5% and 30% for full effect
-      const threshold = 0.05;
-      const normalizedOffset = Math.max(0, (offset - threshold) / (0.3 - threshold));
-      const scaledOffset = Math.min(normalizedOffset, 1);
-      effectRef.current.uniforms.get('uScroll').value = scaledOffset;
+      // Adjusted to start later and ramp up more gradually
+      // Start at 0.07 instead of 0.05, and stretch transition over a longer range
+      const threshold = 0.07;
+      const maxOffset = 0.17; // Lock effects at this offset value
+      const clampedOffset = Math.min(offset, maxOffset); // Never exceed 0.17
+      
+      // Use a wider range for more gradual appearance
+      const normalizedOffset = Math.max(0, (clampedOffset - threshold) / (0.25 - threshold));
+      
+      // Apply easing for more gradual start - use quadratic easing
+      const easedOffset = Math.pow(normalizedOffset, 2) * Math.min(normalizedOffset, 1);
+      
+      effectRef.current.uniforms.get('uScroll').value = easedOffset;
     }
   });
   
@@ -272,17 +282,30 @@ export function ScrollPostEffects() {
   
   // Add a small threshold before effects begin (5% scroll)
   // Then scale between 5% and 30% for full effect
+  // Freeze the effect at 0.17 offset if scrolled past that point
   const threshold = 0.05;
-  const normalizedOffset = Math.max(0, (offset - threshold) / (0.3 - threshold));
+  const maxOffset = 0.17; // Lock effects at this offset value
+  const clampedOffset = Math.min(offset, maxOffset); // Never exceed 0.17
+  const normalizedOffset = Math.max(0, (clampedOffset - threshold) / (0.3 - threshold));
   const scaledOffset = Math.min(normalizedOffset, 1);
   
   return (
     <EffectComposer>
-      {/* Edge-based gradient chromatic aberration */}
-      <GradientChromatic intensity={2.2} />
+      {/* In EffectComposer, lower effects are rendered first (behind) and upper effects are rendered last (in front) */}
+      {/* Vignette */}
+      <Vignette
+        offset={0.1 + scaledOffset * 0.2} 
+        darkness={0.45 + scaledOffset * 0.45} // Start lower, increase with scroll
+      />
       
-      {/* Rectangle displacement AFTER the chromatic effect */}
-      <RectDisplacement intensity={1.0} />
+      {/* Keep contrast */}
+      <BrightnessContrast 
+        brightness={0} 
+        contrast={0.08 + scaledOffset * 0.32} // Start lower, increase with scroll
+      />
+      
+      {/* Film grain/noise that intensifies with scroll */}
+      <Noise opacity={0.05 + scaledOffset * 0.15} /> 
       
       {/* Bloom effect for the glowing edges */}
       <Bloom 
@@ -292,20 +315,11 @@ export function ScrollPostEffects() {
         height={300}
       />
       
-      {/* Film grain/noise that intensifies with scroll */}
-      <Noise opacity={0.05 + scaledOffset * 0.15} /> 
+      {/* Edge-based gradient chromatic aberration is now behind displacement */}
+      <GradientChromatic intensity={2.2} />
       
-      {/* Keep contrast */}
-      <BrightnessContrast 
-        brightness={0} 
-        contrast={0.08 + scaledOffset * 0.32} // Start lower, increase with scroll
-      />
-      
-      {/* Vignette */}
-      <Vignette
-        offset={0.1 + scaledOffset * 0.2} 
-        darkness={0.45 + scaledOffset * 0.45} // Start lower, increase with scroll
-      />
+      {/* Rectangle displacement is now applied last (on top) */}
+      <RectDisplacement intensity={1.0} />
     </EffectComposer>
   );
 }
@@ -397,15 +411,19 @@ export function CloudOverlay() {
       const threshold = 0.02;
       const fadeOutStart = 0.1; // Start fading out much earlier (was 0.15)
       
+      // Freeze the effect at 0.17 offset if scrolled past that point
+      const maxOffset = 0.17; // Lock effects at this offset value
+      const clampedOffset = Math.min(offset, maxOffset); // Never exceed 0.17
+      
       let scaledOffset = 0;
-      if (offset <= threshold) {
+      if (clampedOffset <= threshold) {
         scaledOffset = 0;
-      } else if (offset <= fadeOutStart) {
+      } else if (clampedOffset <= fadeOutStart) {
         // Ramp up quickly
-        scaledOffset = (offset - threshold) / (fadeOutStart - threshold);
+        scaledOffset = (clampedOffset - threshold) / (fadeOutStart - threshold);
       } else {
         // Fade out quickly as oscillating grid takes over
-        scaledOffset = Math.max(0, 1 - (offset - fadeOutStart) / 0.05); // Faster fadeout (was 0.1)
+        scaledOffset = Math.max(0, 1 - (clampedOffset - fadeOutStart) / 0.05); // Faster fadeout (was 0.1)
       }
       
       // Update material uniforms
@@ -442,8 +460,11 @@ export function ScrollRock() {
     if (!rockRef.current) return;
     
     // Start appearing immediately and complete by 30% scroll
+    // Freeze the effect at 0.17 offset if scrolled past that point
     const threshold = 0.05; // Start just a bit after scroll begins
-    const progress = Math.max(0, (offset - threshold) / (0.25)); // Complete by 30% scroll
+    const maxOffset = 0.17; // Lock effects at this offset value
+    const clampedOffset = Math.min(offset, maxOffset); // Never exceed 0.17
+    const progress = Math.max(0, (clampedOffset - threshold) / (0.25)); // Complete by 30% scroll
     const clampedProgress = Math.min(progress, 1); // Ensure it doesn't exceed 1
     
     // Quadratic easing for smoother motion
