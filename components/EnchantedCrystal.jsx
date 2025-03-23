@@ -7,7 +7,7 @@ import { useGLTF, useTexture } from '@react-three/drei';
 import { useSimpleScroll } from './SimpleScrollyControls';
 
 export default function EnchantedCrystal() {
-  const { offset, rawOffset, isLooping } = useSimpleScroll();
+  const { offset } = useSimpleScroll();
   const { viewport, camera, gl, scene, size } = useThree();
   const groupRef = useRef();
   const meshRef = useRef();
@@ -183,61 +183,14 @@ export default function EnchantedCrystal() {
     // Crystal appears at scroll offset 0.1317
     const appearThreshold = 0.1317;
     
-    // Loop transition starts at 0.7
-    const loopStartPoint = 0.70;
-    const loopEndPoint = 0.75;
-    
     // Calculate visibility and position based on scroll offset
     const visibility = Math.max(0, offset - appearThreshold);
     
-    // Determine if we're in the loop transition zone
-    const isLoopTransition = offset >= loopStartPoint && offset <= loopEndPoint;
+    // Continuous vertical movement based purely on scroll, starting at the threshold
+    const baseYPosition = -6.0 + Math.max(0, (offset - appearThreshold) * 20.0); // Faster upward movement
     
-    // Calculate loop transition progress
-    const loopProgress = isLoopTransition ? 
-      (offset - loopStartPoint) / (loopEndPoint - loopStartPoint) : 0;
-    
-    // Base continuous movement calculation
-    let baseYPosition = -6.0;
-    let rotationY = time * 0.2; // Base time rotation
-    let targetScale = 20.8; // Starting scale
-    
-    // Main section movement (after appearance, before loop)
-    if (offset > appearThreshold && offset < loopStartPoint) {
-      // Normal upward movement
-      baseYPosition = -6.0 + Math.max(0, (offset - appearThreshold) * 20.0);
-      
-      // Normal rotation based on scroll
-      rotationY += Math.max(0, offset - appearThreshold) * Math.PI * 4;
-      
-      // Normal scale increase
-      targetScale = 20.8 + Math.max(0, (offset - appearThreshold)) * (45.2 - 20.8);
-    } 
-    // During loop transition - prepare to return to initial state
-    else if (isLoopTransition) {
-      // Calculate final position at loop start
-      const finalYPosition = -6.0 + (loopStartPoint - appearThreshold) * 20.0;
-      
-      // Calculate the initial position (to return to)
-      const initialYPosition = -6.0;
-      
-      // Linear interpolation between final position and initial position
-      baseYPosition = finalYPosition * (1 - loopProgress) + initialYPosition * loopProgress;
-      
-      // For rotation, maintain the scroll-based rotation but start blending back to initial
-      const finalRotation = time * 0.2 + (loopStartPoint - appearThreshold) * Math.PI * 4;
-      const initialRotation = time * 0.2; // Just the time component
-      
-      // Blend between final and initial rotation
-      rotationY = finalRotation * (1 - loopProgress) + initialRotation * loopProgress;
-      
-      // For scale, blend from maximum scale back to minimum
-      const finalScale = 20.8 + (loopStartPoint - appearThreshold) * (45.2 - 20.8);
-      const initialScale = 20.8;
-      
-      // Blend between final and initial scale
-      targetScale = finalScale * (1 - loopProgress) + initialScale * loopProgress;
-    }
+    // Continuous rotation that never stops
+    const rotationY = time * 0.2 + Math.max(0, offset - appearThreshold) * Math.PI * 4; // Time-based + scroll-based rotation
     
     // Floating animation remains
     const floatAmplitude = 0.1;
@@ -255,9 +208,11 @@ export default function EnchantedCrystal() {
       rotationY + mouseRotationY, // Combined auto-rotation and mouse influence
       0
     );
-    
-    // Update target scale
-    targetScaleRef.current = targetScale;
+
+    // Continuous scaling - also affected by the appear threshold
+    const startScale = 20.8;
+    const endScale = 45.2;
+    targetScaleRef.current = startScale + Math.max(0, (offset - appearThreshold)) * (endScale - startScale);
 
     // Keep existing smooth transitions
     const positionLerpFactor = 0.05;

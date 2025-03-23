@@ -26,6 +26,12 @@ const createFragmentData = () => {
         offset: Math.random() * Math.PI * 2,
         rotationSpeed: 0.05 + Math.random() * 0.05,
         expansionFactor: 0.2 + Math.random() * 0.1
+      },
+      glowParams: {
+        strength: 0,
+        baseColor: new THREE.Color('#ff6a00'), // Orange glow color
+        activeColor: new THREE.Color('#ff3300'), // Brighter color for direct hover
+        diffusionSpeed: 0.1 + Math.random() * 0.05
       }
     });
   });
@@ -55,6 +61,12 @@ const createFragmentData = () => {
         offset: Math.random() * Math.PI * 2,
         rotationSpeed: 0.1 + Math.random() * 0.1,
         expansionFactor: 0.3 + Math.random() * 0.2
+      },
+      glowParams: {
+        strength: 0,
+        baseColor: new THREE.Color('#ff6a00'), // Orange glow color
+        activeColor: new THREE.Color('#ff3300'), // Brighter color for direct hover
+        diffusionSpeed: 0.1 + Math.random() * 0.05
       }
     });
   }
@@ -63,16 +75,40 @@ const createFragmentData = () => {
 };
 
 const FracturedRealRock = () => {
-  const { viewport, mouse } = useThree();
+  const { viewport, mouse, camera } = useThree();
   const [hovered, setHovered] = useState(false);
   const [hoveredPiece, setHoveredPiece] = useState<number | null>(null);
   const groupRef = useRef<THREE.Group>(null);
   const fragmentsRef = useRef<THREE.Object3D[]>([]);
   const lightRef = useRef<THREE.PointLight>(null);
   const innerLightRef = useRef<THREE.PointLight>(null);
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const mousePos = useRef(new THREE.Vector2());
   
   // Create fragments data
   const fragments = useMemo(() => createFragmentData(), []);
+
+  // Precalculate distances between fragments for diffusion
+  const neighborMap = useMemo(() => {
+    const map = new Map<number, {index: number, distance: number}[]>();
+    
+    fragments.forEach((fragment, i) => {
+      const neighbors: {index: number, distance: number}[] = [];
+      
+      fragments.forEach((otherFragment, j) => {
+        if (i !== j) {
+          const distance = fragment.position.distanceTo(otherFragment.position);
+          neighbors.push({ index: j, distance });
+        }
+      });
+      
+      // Sort by distance and keep nearest neighbors
+      neighbors.sort((a, b) => a.distance - b.distance);
+      map.set(i, neighbors.slice(0, 5)); // Keep top 5 nearest neighbors
+    });
+    
+    return map;
+  }, [fragments]);
   
   // Springs for smooth animation
   const { expansion } = useSpring({
@@ -85,12 +121,84 @@ const FracturedRealRock = () => {
     config: { mass: 2, tension: 60, friction: 25 }
   });
 
+  // Update mouse position for raycaster
+  useFrame(({ mouse }) => {
+    mousePos.current.set(mouse.x, mouse.y);
+  });
+
+  // Handle ray casting for precise hover detection
+  useEffect(() => {
+    const checkIntersections = () => {
+      if (!groupRef.current || fragmentsRef.current.length === 0) return;
+      
+      raycasterRef.current.setFromCamera(mousePos.current, camera);
+      
+      // Collect all meshes from fragments
+      const meshes: THREE.Object3D[] = [];
+      fragmentsRef.current.forEach((fragment, index) => {
+        if (fragment) {
+          fragment.traverse(child => {
+            if (child instanceof THREE.Mesh) {
+              // Store the fragment index on the mesh for identification
+              (child as any).fragmentIndex = index;
+              meshes.push(child);
+            }
+          });
+        }
+      });
+      
+      const intersects = raycasterRef.current.intersectObjects(meshes);
+      
+      if (intersects.length > 0) {
+        const fragmentIndex = (intersects[0].object as any).fragmentIndex;
+        setHoveredPiece(fragmentIndex);
+        setHovered(true);
+      } else {
+        setHoveredPiece(null);
+        setHovered(false);
+      }
+    };
+    
+    window.addEventListener('mousemove', checkIntersections);
+    return () => window.removeEventListener('mousemove', checkIntersections);
+  }, [camera]);
+
   // Handle animations and interactions
   useFrame(({ clock }) => {
     if (!groupRef.current || fragmentsRef.current.length === 0) return;
     
     const t = clock.getElapsedTime();
     const currentExpansion = expansion.get();
+    
+    // Reset all glow strengths first for re-calculation
+    fragments.forEach(fragment => {
+      // Decay existing glow
+      fragment.glowParams.strength *= 0.95; // Gradual decay
+    });
+    
+    // Set glow strength for hovered piece
+    if (hoveredPiece !== null) {
+      fragments[hoveredPiece].glowParams.strength = 1.0;
+      
+      // Diffuse glow to neighbors
+      const neighbors = neighborMap.get(hoveredPiece) || [];
+      neighbors.forEach(neighbor => {
+        // Calculate diffusion strength based on distance
+        const diffusionStrength = 0.8 * (1 - Math.min(1, neighbor.distance / 1.5));
+        fragments[neighbor.index].glowParams.strength = 
+          Math.max(fragments[neighbor.index].glowParams.strength, diffusionStrength);
+          
+        // Secondary diffusion to neighbors of neighbors (weaker)
+        const secondaryNeighbors = neighborMap.get(neighbor.index) || [];
+        secondaryNeighbors.forEach(secondaryNeighbor => {
+          if (secondaryNeighbor.index !== hoveredPiece) {
+            const secondaryStrength = diffusionStrength * 0.6 * (1 - Math.min(1, secondaryNeighbor.distance / 1.0));
+            fragments[secondaryNeighbor.index].glowParams.strength = 
+              Math.max(fragments[secondaryNeighbor.index].glowParams.strength, secondaryStrength);
+          }
+        });
+      });
+    }
     
     // Update fragment positions
     fragmentsRef.current.forEach((fragment, i) => {
@@ -138,29 +246,81 @@ const FracturedRealRock = () => {
           fragment.position.y += (mouseY - fragment.position.y) * attraction;
         }
       }
+      
+      // Update materials based on glow strength
+      fragment.traverse(child => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+          const glowStrength = data.glowParams.strength;
+          
+          // Only update if there's meaningful glow
+          if (glowStrength > 0.01) {
+            const glowColor = new THREE.Color().copy(data.glowParams.baseColor);
+            
+            // Shift color toward active color if strongly glowing
+            if (glowStrength > 0.7) {
+              glowColor.lerp(data.glowParams.activeColor, (glowStrength - 0.7) * 3.3);
+            }
+            
+            child.material.emissive.copy(glowColor);
+            child.material.emissiveIntensity = glowStrength * 0.7;
+            
+            // Subtle adjustment to other material properties
+            child.material.roughness = 0.75 - glowStrength * 0.2;
+            
+            // Apply subtle scale boost to glowing fragments
+            const scaleBoost = 1.0 + glowStrength * 0.05;
+            fragment.scale.set(
+              data.scale * scaleBoost,
+              data.scale * scaleBoost,
+              data.scale * scaleBoost
+            );
+          } else {
+            // Reset material properties
+            child.material.emissive.set(0, 0, 0);
+            child.material.emissiveIntensity = 0;
+            child.material.roughness = 0.75;
+            fragment.scale.set(data.scale, data.scale, data.scale);
+          }
+        }
+      });
     });
     
     // Update lights
     if (lightRef.current) {
-      const glowIntensity = glowSpring.glow.get();
-      lightRef.current.intensity = 0.5 + glowIntensity * 2.5 + Math.sin(t * 2) * 0.5 * glowIntensity;
+      const globalGlowIntensity = Math.max(glowSpring.glow.get(), 
+        hoveredPiece !== null ? 0.7 : 0);
       
-      const lightRadius = 0.1 + expansion.get() * 0.3;
-      lightRef.current.position.x = Math.sin(t * 0.7) * lightRadius;
-      lightRef.current.position.y = Math.cos(t * 0.5) * lightRadius;
-      lightRef.current.position.z = Math.sin(t * 0.3) * lightRadius;
+      lightRef.current.intensity = 0.5 + globalGlowIntensity * 2.5 + Math.sin(t * 2) * 0.5 * globalGlowIntensity;
+      
+      // If a piece is hovered, move light position toward it
+      if (hoveredPiece !== null && fragmentsRef.current[hoveredPiece]) {
+        const hoveredPos = new THREE.Vector3();
+        fragmentsRef.current[hoveredPiece].getWorldPosition(hoveredPos);
+        const localPos = hoveredPos.clone();
+        if (groupRef.current) {
+          groupRef.current.worldToLocal(localPos);
+        }
+        
+        lightRef.current.position.lerp(localPos, 0.1);
+      } else {
+        const lightRadius = 0.1 + expansion.get() * 0.3;
+        lightRef.current.position.x = Math.sin(t * 0.7) * lightRadius;
+        lightRef.current.position.y = Math.cos(t * 0.5) * lightRadius;
+        lightRef.current.position.z = Math.sin(t * 0.3) * lightRadius;
+      }
     }
     
     if (innerLightRef.current) {
-      innerLightRef.current.intensity = glowSpring.glow.get() * 3;
+      innerLightRef.current.intensity = Math.max(
+        glowSpring.glow.get() * 3,
+        hoveredPiece !== null ? 2.0 : 0
+      );
     }
   });
 
   return (
     <group 
       ref={groupRef}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
     >
       {/* Render rock fragments */}
       {fragments.map((fragment, i) => {
@@ -179,8 +339,6 @@ const FracturedRealRock = () => {
                     color="#333333" 
                     roughness={0.75} 
                     metalness={0.2}
-                    emissive={hoveredPiece === i ? "#ff6a00" : "#000000"}
-                    emissiveIntensity={hoveredPiece === i ? 0.5 : 0}
                   />
                 </mesh>
               );
@@ -192,8 +350,6 @@ const FracturedRealRock = () => {
                     color="#3a3a3a" 
                     roughness={0.8} 
                     metalness={0.15}
-                    emissive={hoveredPiece === i ? "#ff6a00" : "#000000"}
-                    emissiveIntensity={hoveredPiece === i ? 0.5 : 0}
                   />
                 </mesh>
               );
@@ -205,8 +361,6 @@ const FracturedRealRock = () => {
                     color="#2a2a2a" 
                     roughness={0.7} 
                     metalness={0.25}
-                    emissive={hoveredPiece === i ? "#ff6a00" : "#000000"}
-                    emissiveIntensity={hoveredPiece === i ? 0.5 : 0}
                   />
                 </mesh>
               );
@@ -218,8 +372,6 @@ const FracturedRealRock = () => {
                     color="#404040" 
                     roughness={0.85} 
                     metalness={0.1}
-                    emissive={hoveredPiece === i ? "#ff6a00" : "#000000"}
-                    emissiveIntensity={hoveredPiece === i ? 0.5 : 0}
                   />
                 </mesh>
               );
@@ -233,14 +385,6 @@ const FracturedRealRock = () => {
             position={[fragment.position.x, fragment.position.y, fragment.position.z]}
             rotation={[fragment.rotation.x, fragment.rotation.y, fragment.rotation.z]}
             scale={fragment.scale}
-            onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-              e.stopPropagation();
-              setHoveredPiece(i);
-            }}
-            onPointerOut={(e: ThreeEvent<PointerEvent>) => {
-              e.stopPropagation();
-              setHoveredPiece(null);
-            }}
           >
             <RockMesh />
           </animated.group>

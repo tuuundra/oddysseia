@@ -5,12 +5,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 
 // Create a context for scroll data
-export const ScrollContext = createContext({ 
-  offset: 0,
-  rawOffset: 0,
-  isLooping: false, 
-  scroll: { current: 0, max: 1 }
-});
+export const ScrollContext = createContext({ offset: 0 });
 
 // Hook to consume scroll data (replacement for useScroll)
 export const useSimpleScroll = () => useContext(ScrollContext);

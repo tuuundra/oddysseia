@@ -3,6 +3,97 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
+// Create a utility function for glow effects
+const createMaterialWithGlow = (originalMaterial: THREE.Material, glowStrength: number = 0) => {
+  // Clone the material to avoid modifying the original
+  const material = originalMaterial.clone();
+  
+  // Set up shader-based edge glow (Fresnel effect)
+  if (material instanceof THREE.MeshStandardMaterial) {
+    // Create a custom onBeforeCompile handler to inject Fresnel code
+    material.onBeforeCompile = (shader) => {
+      // Wintery magical color palette - with reduced intensity
+      const baseGlowColor = new THREE.Color('#6b85ff').multiplyScalar(0.6); // Softened cool blue
+      const activeGlowColor = new THREE.Color('#a88bff').multiplyScalar(0.7); // Softened mystical purple
+      
+      // Calculate color based on glow strength
+      const glowColor = new THREE.Color();
+      if (glowStrength > 0.7) {
+        // Shift toward the more intense color for strong glow
+        glowColor.copy(baseGlowColor).lerp(activeGlowColor, (glowStrength - 0.7) * 3.3);
+      } else {
+        glowColor.copy(baseGlowColor);
+      }
+      
+      // Add uniforms without additional varyings
+      shader.uniforms.glowColor = { value: glowColor };
+      shader.uniforms.glowStrength = { value: glowStrength };
+      shader.uniforms.fresnelPower = { value: 4.0 }; // Increased from 2.0 for sharper edge effect
+      
+      // We don't need to inject vNormal as it's already defined by THREE.js
+      // Only add the worldPosition which isn't defined by default
+      shader.vertexShader = shader.vertexShader.replace(
+        'varying vec3 vViewPosition;',
+        'varying vec3 vViewPosition;\nvarying vec3 vWorldPosition;'
+      );
+      
+      // Add vWorldPosition in vertex shader main function
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <worldpos_vertex>',
+        '#include <worldpos_vertex>\nvWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+      );
+      
+      // Inject uniforms in fragment shader without redefining vNormal
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'uniform float opacity;',
+        'uniform float opacity;\nuniform vec3 glowColor;\nuniform float glowStrength;\nuniform float fresnelPower;\nvarying vec3 vWorldPosition;'
+      );
+      
+      // Add Fresnel calculation to output fragment
+      // Use the existing vNormal provided by THREE.js
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        
+        // Calculate view direction
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        
+        // Fresnel effect - stronger at edges, weaker on front-facing surfaces
+        float fresnel = pow(1.0 - max(0.0, dot(viewDir, vNormal)), fresnelPower);
+        
+        // Apply a much sharper threshold to only keep very edge-like fresnel values
+        float edgeThreshold = 0.3; // Only keep the outer 30% of the fresnel effect
+        float edgeMask = smoothstep(edgeThreshold, 1.0, fresnel);
+        
+        // Apply glow strength with the edge mask - reduced intensity to 2.0
+        float edgeGlow = edgeMask * glowStrength * 0.2;
+        
+        // Add glow only to the edges - with reduced overall intensity
+        totalEmissiveRadiance += glowColor * edgeGlow;`
+      );
+    };
+    
+    // Make fragment slightly more transparent to enhance edge appearance
+    if (glowStrength > 0) {
+      material.transparent = true;
+      material.opacity = 1; // Increased from 0.85 for less transparency
+      
+      // Reduce the roughness and increase metalness to enhance reflections at edges
+      material.roughness = 0.5;
+      material.metalness = 0.7;
+      
+      // Zero out emissive for surface, letting shader handle all glow
+      material.emissive.set(0, 0, 0);
+      material.emissiveIntensity = 0;
+    }
+    
+    // Flag the material as needing an update
+    material.needsUpdate = true;
+  }
+  
+  return material;
+};
+
 const FracturedGLBRock = () => {
   const groupRef = useRef<THREE.Group>(null);
   
@@ -56,8 +147,16 @@ const FracturedGLBRock = () => {
     distanceFromCenter: number,
     directionFromCenter: THREE.Vector3,
     originalPosition: THREE.Vector3,
-    currentExpansion: number // Track current expansion amount for smooth transitions
+    currentExpansion: number, // Track current expansion amount for smooth transitions
+    originalMaterial: THREE.Material | THREE.Material[], // Store the original material
+    currentGlow: number // Track current glow amount
   }>());
+  
+  // Track the glow map
+  const glowMap = useRef(new Map<string, number>()); // Map fragment names to glow strength
+  
+  // Add fragment neighbors reference at the top with other refs
+  const fragmentNeighborsRef = useRef(new Map<string, string[]>());
   
   // Mouse event handlers
   useEffect(() => {
@@ -245,7 +344,9 @@ const FracturedGLBRock = () => {
             distanceFromCenter: distFromCenter,
             directionFromCenter: direction.clone(),
             originalPosition: child.position.clone(),
-            currentExpansion: 0
+            currentExpansion: 0,
+            originalMaterial: child.material,
+            currentGlow: 0
           });
           
           // Make fragments interactive
@@ -266,6 +367,9 @@ const FracturedGLBRock = () => {
           
           // Log materials to see what's available
           console.log('Original material:', child.material);
+          
+          // Store the original material for later reference
+          const originalMaterial = child.material;
           
           // Preserve original material but enhance it
           if (child.material) {
@@ -297,12 +401,74 @@ const FracturedGLBRock = () => {
               color: '#a2a2a2',
               roughness: 0.9,
               metalness: 0.1,
-              emissive: "#193319",
-              emissiveIntensity: 0.1,
             });
+          }
+          
+          // Make sure the mesh has a name for the fragments map
+          if (!child.name) {
+            child.name = 'fragment_' + child.uuid.substring(0, 8);
+          }
+          
+          // Add to glow map with initial value of 0
+          glowMap.current.set(child.name, 0);
+          
+          // Update the fragments map with the original material
+          const fragmentData = fragmentsMap.current.get(child.name);
+          if (fragmentData) {
+            fragmentData.originalMaterial = originalMaterial;
+            fragmentData.currentGlow = 0;
           }
         }
       });
+    }
+  }, []);
+  
+  // Calculate fragment neighboring map on initialization
+  useEffect(() => {
+    if (scene.current) {
+      // After setting up fragments, calculate which fragments are neighbors
+      // A map to store each fragment's neighboring fragments
+      const neighborMap = new Map<string, string[]>();
+      
+      // Function to check if two fragments are close enough to be neighbors
+      const areFragmentsNeighboring = (pos1: THREE.Vector3, pos2: THREE.Vector3) => {
+        // Use a smaller threshold to only consider fragments that nearly touch
+        const neighboringThreshold = 0.1; // Reduced from typical values to only get very close neighbors
+        return pos1.distanceTo(pos2) < neighboringThreshold;
+      };
+      
+      // Get all fragment meshes
+      const fragmentMeshes: {name: string, position: THREE.Vector3}[] = [];
+      
+      scene.current.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.visible && child.userData.isFragment) {
+          fragmentMeshes.push({
+            name: child.name,
+            position: child.position.clone()
+          });
+        }
+      });
+      
+      // Calculate neighboring relationships
+      fragmentMeshes.forEach(fragment => {
+        const neighbors: string[] = [];
+        
+        fragmentMeshes.forEach(otherFragment => {
+          if (fragment.name !== otherFragment.name) {
+            if (areFragmentsNeighboring(fragment.position, otherFragment.position)) {
+              neighbors.push(otherFragment.name);
+            }
+          }
+        });
+        
+        neighborMap.set(fragment.name, neighbors);
+      });
+      
+      // Store the neighbor map as a ref
+      fragmentNeighborsRef.current = neighborMap;
+      
+      // Log for debugging
+      console.log('Fragment neighbors map created:', neighborMap);
     }
   }, []);
   
@@ -494,9 +660,36 @@ const FracturedGLBRock = () => {
       lastMousePos.current.lerp(targetHoverPoint.current, 0.3);
     }
     
+    // Reset all glow strengths first for re-calculation
+    fragmentsMap.current.forEach((fragmentData, name) => {
+      // Apply smoother glow decay with progressive slowing
+      // The lower the glow value, the slower it decays (prevents the sharp disappearance)
+      const decayRate = 0.9 - 0.3 * (1 - fragmentData.currentGlow); // Decay slows as glow decreases
+      fragmentData.currentGlow *= decayRate > 0.6 ? decayRate : 0.6; // Ensure decay never goes below 0.6
+      
+      // Apply much lower minimum threshold to avoid sharp disappearance
+      if (fragmentData.currentGlow < 0.001) {
+        fragmentData.currentGlow = 0;
+      }
+    });
+    
+    // Set glow strength for hovered fragment
+    if (hoveredMesh) {
+      const hoveredName = hoveredMesh.name;
+      const hoveredData = fragmentsMap.current.get(hoveredName);
+      
+      if (hoveredData) {
+        // Set maximum glow for hovered fragment only
+        hoveredData.currentGlow = 1.0;
+        
+        // Remove neighbor diffusion - only glow the exact fragment being hovered
+        // No code needed here as we're not applying glow to neighbors anymore
+      }
+    }
+    
     // Update all fragments positions based on hover state
     fragmentsMap.current.forEach((fragmentData, name) => {
-      const { mesh, directionFromCenter, originalPosition } = fragmentData;
+      const { mesh, directionFromCenter, originalPosition, currentGlow } = fragmentData;
       let targetExpansion = 0;
       
       // Get world position of this fragment
@@ -626,6 +819,43 @@ const FracturedGLBRock = () => {
       mesh.rotation.x = origRot.x + Math.sin(t * rotSpeed) * 0.001;
       mesh.rotation.y = origRot.y + Math.cos(t * rotSpeed * 0.7) * 0.001;
       mesh.rotation.z = origRot.z + Math.sin(t * rotSpeed * 0.5) * 0.001;
+      
+      // Apply glow effect with outline appearance
+      if (currentGlow > 0) {
+        // Only update material if meaningful glow is present
+        if (Array.isArray(mesh.material)) {
+          // Handle multi-materials
+          mesh.material = (mesh.material as THREE.Material[]).map((mat, index) => {
+            const originalMat = Array.isArray(fragmentData.originalMaterial) 
+              ? fragmentData.originalMaterial[index]
+              : fragmentData.originalMaterial;
+            
+            return createMaterialWithGlow(originalMat, currentGlow);
+          });
+        } else {
+          // Single material
+          const originalMat = Array.isArray(fragmentData.originalMaterial)
+            ? fragmentData.originalMaterial[0]
+            : fragmentData.originalMaterial;
+            
+          mesh.material = createMaterialWithGlow(originalMat, currentGlow);
+        }
+        
+        // Apply subtle scale boost - smaller boost for outline effect
+        const scaleBoost = 1.0 + currentGlow * 0.02; // Reduced from 0.05 to 0.02
+        mesh.scale.set(scaleBoost, scaleBoost, scaleBoost);
+      } else {
+        // Reset material when no glow
+        if (Array.isArray(fragmentData.originalMaterial)) {
+          // Clone the original materials to avoid modifying them
+          mesh.material = (fragmentData.originalMaterial as THREE.Material[]).map(mat => mat.clone());
+        } else {
+          mesh.material = (fragmentData.originalMaterial as THREE.Material).clone();
+        }
+        
+        // Reset scale
+        mesh.scale.set(1, 1, 1);
+      }
     });
     
     // Handle any fragments not in the map

@@ -5,11 +5,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useSimpleScroll } from './SimpleScrollyControls';
 
-export default function MistTransition({ 
-  transitionPoint = 0.1, 
-  duration = 0.05,
-  direction = "up" // New prop: "up" or "down" to control mist direction
-}) {
+export default function MistTransition({ transitionPoint = 0.1, duration = 0.05 }) {
   const { offset } = useSimpleScroll();
   const { viewport } = useThree();
   const materialRef = useRef();
@@ -128,8 +124,7 @@ export default function MistTransition({
         time: { value: 0 },
         progress: { value: 0 },
         noiseTexture: { value: noiseTexture },
-        resolution: { value: new THREE.Vector2(viewport.width, viewport.height) },
-        direction: { value: direction === "up" ? 1.0 : -1.0 } // Pass direction to shader
+        resolution: { value: new THREE.Vector2(viewport.width, viewport.height) }
       },
       vertexShader: `
         varying vec2 vUv;
@@ -144,7 +139,6 @@ export default function MistTransition({
         uniform float progress;
         uniform sampler2D noiseTexture;
         uniform vec2 resolution;
-        uniform float direction; // 1.0 for upward, -1.0 for downward
         varying vec2 vUv;
         
         // Improved fractal noise function for more realistic clouds
@@ -195,11 +189,8 @@ export default function MistTransition({
           float pullProgress = dramaticPull(progress);
           
           // Map to position with MUCH more dramatic sweep from well below
-          // Direction determines whether mist comes from bottom (-1.2) and goes up (1.8)
-          // or comes from top (1.8) and goes down (-1.2)
-          float startPos = direction > 0.0 ? -1.2 : 1.8;
-          float endPos = direction > 0.0 ? 1.8 : -1.2;
-          float basePosition = mix(startPos, endPos, pullProgress);
+          // Start at -1.2 (well below viewport) and end at 1.8 (well above)
+          float basePosition = mix(-1.2, 1.8, pullProgress);
           
           // Multiple layers of waves with different frequencies for a natural cloud edge
           // Increased amplitude for more dramatic waves
@@ -231,10 +222,8 @@ export default function MistTransition({
             cloudHeight -= (detailNoise - 0.4) * 0.25; // More noticeable fine details
           }
           
-          // Calculate distance to cloud edge with more detail - adjusted for direction
-          // For upward direction: uv.y - cloudHeight
-          // For downward direction: cloudHeight - uv.y
-          float distance = direction > 0.0 ? uv.y - cloudHeight : cloudHeight - uv.y;
+          // Calculate distance to cloud edge with more detail
+          float distance = uv.y - cloudHeight;
           
           // Create a wider gradient zone for a more visible cloudy transition
           float cloudWidth = 0.5; // Even wider for a more billowy appearance
@@ -249,48 +238,28 @@ export default function MistTransition({
           float transitionZone = smoothstep(-cloudWidth * 1.8, cloudWidth * 0.5, distance);
           float cloudOpacity = mix(baseOpacity, baseOpacity * (0.5 + cloudDetail * 1.0), transitionZone);
           
+          // Add stronger vertical gradient to ensure bottom is more opaque
+          // This helps with the pulling-up effect to keep the bottom completely solid
+          
           // Define a hard bottom threshold and smaller transition zone for a cleaner look
           float bottomThreshold = 0.3; // Lower threshold covers more of the bottom
           float transitionZoneSize = 0.08; // Smaller transition for a cleaner cutoff
           
-          // Adjust bottom cutoff based on direction
-          if (direction > 0.0) {
-            // Upward transition - solid bottom
-            if (uv.y < bottomThreshold) {
-              // Completely opaque with no cloud effect at the bottom
-              cloudOpacity = 1.0;
-            } else if (uv.y < bottomThreshold + transitionZoneSize) {
-              // Small smooth transition zone from solid to cloudy
-              float t = (uv.y - bottomThreshold) / transitionZoneSize;
-              // Use custom easing for transition to maintain cloud detail
-              float easedT = smoothstep(0.0, 1.0, t);
-              
-              // Mix between solid and the natural cloud opacity
-              cloudOpacity = mix(1.0, cloudOpacity, easedT);
-              
-              // Enhance the cloud detail slightly in the transition zone
-              if (cloudDetail > 0.5) {
-                cloudOpacity = mix(cloudOpacity, cloudOpacity * (1.0 - (cloudDetail - 0.5) * 0.3), easedT);
-              }
-            }
-          } else {
-            // Downward transition - solid top
-            if (uv.y > 1.0 - bottomThreshold) {
-              // Completely opaque with no cloud effect at the top
-              cloudOpacity = 1.0;
-            } else if (uv.y > 1.0 - bottomThreshold - transitionZoneSize) {
-              // Small smooth transition zone from solid to cloudy
-              float t = (1.0 - bottomThreshold - uv.y) / transitionZoneSize;
-              // Use custom easing for transition to maintain cloud detail
-              float easedT = smoothstep(0.0, 1.0, t);
-              
-              // Mix between solid and the natural cloud opacity
-              cloudOpacity = mix(1.0, cloudOpacity, easedT);
-              
-              // Enhance the cloud detail slightly in the transition zone
-              if (cloudDetail > 0.5) {
-                cloudOpacity = mix(cloudOpacity, cloudOpacity * (1.0 - (cloudDetail - 0.5) * 0.3), easedT);
-              }
+          if (uv.y < bottomThreshold) {
+            // Completely opaque with no cloud effect at the bottom
+            cloudOpacity = 1.0;
+          } else if (uv.y < bottomThreshold + transitionZoneSize) {
+            // Small smooth transition zone from solid to cloudy
+            float t = (uv.y - bottomThreshold) / transitionZoneSize;
+            // Use custom easing for transition to maintain cloud detail
+            float easedT = smoothstep(0.0, 1.0, t);
+            
+            // Mix between solid and the natural cloud opacity
+            cloudOpacity = mix(1.0, cloudOpacity, easedT);
+            
+            // Enhance the cloud detail slightly in the transition zone
+            if (cloudDetail > 0.5) {
+              cloudOpacity = mix(cloudOpacity, cloudOpacity * (1.0 - (cloudDetail - 0.5) * 0.3), easedT);
             }
           }
           
@@ -299,24 +268,29 @@ export default function MistTransition({
         }
       `,
       transparent: true,
-      depthWrite: false
+      depthWrite: false,
+      depthTest: false
     });
     
-    meshRef.current.material = material;
     materialRef.current = material;
-  }, [viewport, noiseTexture, direction]);
+    meshRef.current.material = material;
+  }, [noiseTexture, viewport]);
   
-  // Update uniforms
+  // Animate the transition
   useFrame(({ clock }) => {
-    if (!materialRef.current) return;
-    
-    materialRef.current.uniforms.time.value = clock.getElapsedTime();
-    materialRef.current.uniforms.progress.value = transitionProgress;
+    if (materialRef.current) {
+      materialRef.current.uniforms.time.value = clock.getElapsedTime();
+      materialRef.current.uniforms.progress.value = transitionProgress;
+    }
   });
   
   return (
-    <mesh ref={meshRef} position={[0, 0, 0]}>
-      <planeGeometry args={[viewport.width, viewport.height]} />
+    <mesh 
+      ref={meshRef} 
+      position={[0, 0, 10]} // In front of everything
+      renderOrder={1000} // Ensure it renders last
+    >
+      <planeGeometry args={[viewport.width * 1.5, viewport.height * 1.5]} />
     </mesh>
   );
 } 
