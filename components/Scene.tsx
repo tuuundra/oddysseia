@@ -722,44 +722,60 @@ const Igloo = () => {
   );
 };
 
-// Camera with more dramatic floating motion
+// Camera with mouse-controlled movement that always looks at the floating rock
 const FloatingCamera = () => {
   const { camera } = useThree();
   
   // Store the initial camera position for reference
   const initialPosition = useRef(new THREE.Vector3());
+  // Store mouse position
+  const mousePosition = useRef({ x: 0, y: 0 });
+  // Rock position to look at (based on actual position from the scene)
+  const rockPosition = useRef(new THREE.Vector3(23, 0, -22));
   
+  // Set up mouse move listener
   useEffect(() => {
+    // Handler for mouse movement
+    const handleMouseMove = (event: MouseEvent) => {
+      // Convert mouse position to normalized coordinates (-1 to 1)
+      mousePosition.current = {
+        x: (event.clientX / window.innerWidth) * 2 - 1,
+        y: -(event.clientY / window.innerHeight) * 2 + 1
+      };
+    };
+    
+    // Add event listener
+    window.addEventListener('mousemove', handleMouseMove);
+    
     // Set initial camera position
     camera.position.set(32.19, -1.37, -31.22);
     initialPosition.current.copy(camera.position);
+    
+    // Clean up event listener on unmount
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, [camera]);
   
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime();
     
-    // Much faster and more dramatic camera movement
-    const xMovement = Math.sin(time * 0.8) * 0.15;   // Fast side-to-side
-    const yMovement = Math.sin(time * 0.7) * 0.12;   // Fast up-down
-    const zMovement = Math.cos(time * 0.5) * 0.13;   // Fast forward-back
+    // Base floating animation (reduced amplitude compared to original)
+    const xMovement = Math.sin(time * 0.3) * 0.07;
+    const yMovement = Math.sin(time * 0.4) * 0.05;
+    const zMovement = Math.cos(time * 0.2) * 0.06;
+    
+    // Mouse influence (small offset based on mouse position)
+    const mouseXInfluence = mousePosition.current.x * 1.5; // Horizontal camera movement
+    const mouseYInfluence = mousePosition.current.y * 1.0; // Vertical camera movement
     
     // Apply the movement relative to the initial position
-    camera.position.x = initialPosition.current.x + xMovement;
-    camera.position.y = initialPosition.current.y + yMovement;
+    camera.position.x = initialPosition.current.x + xMovement + mouseXInfluence;
+    camera.position.y = initialPosition.current.y + yMovement + mouseYInfluence;
     camera.position.z = initialPosition.current.z + zMovement;
     
-    // More dramatic rotation movement
-    const lookXOffset = Math.sin(time * 0.5) * 0.5;   // Wider angle shifts
-    const lookYOffset = Math.cos(time * 0.6) * 0.4;   // Wider angle shifts
-    
-    // Create a look target with more dramatic motion
-    const lookTarget = new THREE.Vector3(
-      lookXOffset,
-      lookYOffset,
-      0
-    );
-    
-    camera.lookAt(lookTarget);
+    // Always look at the rock position
+    camera.lookAt(rockPosition.current);
   });
   
   return null;

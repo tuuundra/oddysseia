@@ -1,29 +1,23 @@
 "use client";
 
-import { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
-import { useSimpleScroll } from './SimpleScrollyControls';
 import * as THREE from 'three';
+import { useGLTF, useTexture } from '@react-three/drei';
+import { useSimpleScroll } from './SimpleScrollyControls';
 
 export default function EnchantedCrystal() {
-  const { offset } = useSimpleScroll();
-  const { viewport } = useThree();
+  const { offset, rawOffset, isLooping } = useSimpleScroll();
+  const { viewport, camera, gl, scene, size } = useThree();
   const groupRef = useRef();
+  const meshRef = useRef();
   const timeRef = useRef(0);
+  const crystalRef = useRef();
   
-  // Mouse position state
+  // Only keep mouse position for rotation effect
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
-  // Create refs for smooth movement
-  const targetPositionRef = useRef(new THREE.Vector3(0, 6.0, 0));
-  const targetRotationRef = useRef(new THREE.Euler(0, 0, 0));
-  const targetScaleRef = useRef(20.8);
-  
-  // Load the crystal model
-  const { scene } = useGLTF('/enchanted_crystal.glb');
-  
-  // Setup mouse move listener
+  // Setup mouse move listener (keep this for crystal rotation)
   useEffect(() => {
     const handleMouseMove = (event) => {
       // Convert mouse position to normalized coordinates (-1 to 1)
@@ -40,138 +34,263 @@ export default function EnchantedCrystal() {
     };
   }, []);
   
-  // Set initial material properties and renderOrder
-  useEffect(() => {
-    if (scene) {
-      // Set high renderOrder for the entire scene to ensure it's rendered on top
-      scene.renderOrder = 1000;
+  // Create refs for smooth movement
+  const targetPositionRef = useRef(new THREE.Vector3(0, 6.0, 0));
+  const targetRotationRef = useRef(new THREE.Euler(0, 0, 0));
+  const targetScaleRef = useRef(20.8);
+  
+  // Load the crystal model
+  const { scene: crystalScene } = useGLTF('/enchanted_crystal.glb');
+  
+  // Create render targets for environment map and backface rendering
+  const backfaceRenderTarget = useMemo(() => {
+    return new THREE.WebGLRenderTarget(
+      size.width * 0.5, 
+      size.height * 0.5, 
+      {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        stencilBuffer: false
+      }
+    );
+  }, [size]);
+  
+  // Create a simple environment cubemap for reflections
+  const envMap = useMemo(() => {
+    const envMapRenderer = new THREE.WebGLCubeRenderTarget(256);
+    const envMapCamera = new THREE.CubeCamera(0.1, 1000, envMapRenderer);
+    
+    // Create a simple scene with gradient background for env map
+    const envScene = new THREE.Scene();
+    const envColor1 = new THREE.Color('#556677'); // Lighter blue-gray top color (closer to original)
+    const envColor2 = new THREE.Color('#222233'); // Dark bottom color
+    
+    const vertexShader = `
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+    
+    const fragmentShader = `
+      varying vec3 vWorldPosition;
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      void main() {
+        float h = normalize(vWorldPosition).y * 0.5 + 0.5;
+        gl_FragColor = vec4(mix(bottomColor, topColor, h), 1.0);
+      }
+    `;
+    
+    const uniforms = {
+      topColor: { value: envColor1 },
+      bottomColor: { value: envColor2 }
+    };
+    
+    const skyMaterial = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader,
+      uniforms,
+      side: THREE.BackSide
+    });
+    
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(100), skyMaterial);
+    envScene.add(sky);
+    
+    // Add subtle lighting
+    const light1 = new THREE.DirectionalLight(0xcccccc, 0.5);
+    light1.position.set(1, 1, 1);
+    envScene.add(light1);
+    
+    const light2 = new THREE.DirectionalLight(0x445566, 0.2);
+    light2.position.set(-1, -1, -1);
+    envScene.add(light2);
+    
+    // Add ambient light for base illumination
+    const ambient = new THREE.AmbientLight(0x334455, 0.3);
+    envScene.add(ambient);
+    
+    envScene.background = new THREE.Color('#444455');
+    
+    // Update the environment map once
+    envMapCamera.position.set(0, 0, 0);
+    envMapCamera.update(gl, envScene);
+    
+    return envMapRenderer.texture;
+  }, [gl]);
+  
+  // Store camera and crystal positions to avoid buffer conflicts
+  const cameraPositionRef = useRef(new THREE.Vector3());
+  const crystalPositionRef = useRef(new THREE.Vector3());
+  
+  // Update positions safety in main render loop
+  useFrame(({ camera }) => {
+    // Safely update position references
+    if (groupRef.current) {
+      crystalPositionRef.current.setFromMatrixPosition(groupRef.current.matrixWorld);
+    }
+    cameraPositionRef.current.copy(camera.position);
+  });
+  
+  // Handle rendering of backfaces for refraction
+  useFrame(({ gl, scene, camera }) => {
+    if (!crystalRef.current) return;
+    
+    // First render the backfaces for refraction
+    if (crystalRef.current) {
+      // Camera-related uniforms are built-in, no need to update them
       
-      scene.traverse((node) => {
+      // First render scene to the backface render target to use for refraction
+      const currentAutoClear = gl.autoClear;
+      
+      // Setup for first pass
+      gl.autoClear = true;
+      
+      // Hide all crystal meshes
+      let visibilityStates = [];
+      crystalRef.current.traverse((node) => {
         if (node.isMesh) {
-          // Set high renderOrder for each mesh
-          node.renderOrder = 1000;
-          
-          // Enhance the material for a more magical look
-          if (node.material) {
-            // Clone material to avoid modifying the original
-            const newMaterial = node.material.clone();
-            
-            // Make the crystal slightly translucent but fully visible
-            newMaterial.transparent = true;
-            newMaterial.opacity = 1;
-            
-            // Add some glow/emission
-            newMaterial.emissive = new THREE.Color('#80c0ff');
-            newMaterial.emissiveIntensity = 0.2;
-            
-            // Increase reflectivity
-            if (newMaterial.metalness !== undefined) {
-              newMaterial.metalness = 0.3;
-              newMaterial.roughness = 0.2;
-            }
-            
-            // Ensure proper depth test settings
-            newMaterial.depthTest = true;
-            newMaterial.depthWrite = true;
-            
-            node.material = newMaterial;
-          }
+          visibilityStates.push({ node, visible: node.visible });
+          node.visible = false;
         }
       });
+      
+      // Render the scene without crystal to backface texture
+      gl.setRenderTarget(backfaceRenderTarget);
+      gl.clear();
+      gl.render(scene, camera);
+      gl.setRenderTarget(null);
+      
+      // Restore crystal visibility
+      visibilityStates.forEach(({ node, visible }) => {
+        node.visible = visible;
+      });
+      
+      // Restore autoClear
+      gl.autoClear = currentAutoClear;
     }
-  }, [scene]);
+  });
   
-  // Animation based on scroll position
+  // Handle crystal animation
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
     
-    // Store time for animation
     const time = clock.getElapsedTime();
-    timeRef.current = time;
     
-    // Crystal appears at .16 offset from the top of the screen
-    const appearThreshold = 0.16;
+    // Crystal appears at scroll offset 0.1317
+    const appearThreshold = 0.1317;
     
-    // Calculate crystal position based on scroll
-    // Start offscreen (6.0) and move to center (0) as user scrolls
-    const scrollRange = 0.3; // Amount of scroll to complete the movement
-    const scrollProgress = Math.max(0, Math.min(1, (offset - appearThreshold) / scrollRange));
+    // Loop transition starts at 0.7
+    const loopStartPoint = 0.70;
+    const loopEndPoint = 0.75;
     
-    // Y position: start way above viewport (6.0), move to center (0)
-    const targetY = 6.0 - (scrollProgress * 6.0);
+    // Calculate visibility and position based on scroll offset
+    const visibility = Math.max(0, offset - appearThreshold);
     
-    // Apply floating animation
-    const floatAmplitude = 0.1; // How much it floats up and down
-    const floatFrequency = 1.0; // Speed of floating motion
+    // Determine if we're in the loop transition zone
+    const isLoopTransition = offset >= loopStartPoint && offset <= loopEndPoint;
+    
+    // Calculate loop transition progress
+    const loopProgress = isLoopTransition ? 
+      (offset - loopStartPoint) / (loopEndPoint - loopStartPoint) : 0;
+    
+    // Base continuous movement calculation
+    let baseYPosition = -6.0;
+    let rotationY = time * 0.2; // Base time rotation
+    let targetScale = 20.8; // Starting scale
+    
+    // Main section movement (after appearance, before loop)
+    if (offset > appearThreshold && offset < loopStartPoint) {
+      // Normal upward movement
+      baseYPosition = -6.0 + Math.max(0, (offset - appearThreshold) * 20.0);
+      
+      // Normal rotation based on scroll
+      rotationY += Math.max(0, offset - appearThreshold) * Math.PI * 4;
+      
+      // Normal scale increase
+      targetScale = 20.8 + Math.max(0, (offset - appearThreshold)) * (45.2 - 20.8);
+    } 
+    // During loop transition - prepare to return to initial state
+    else if (isLoopTransition) {
+      // Calculate final position at loop start
+      const finalYPosition = -6.0 + (loopStartPoint - appearThreshold) * 20.0;
+      
+      // Calculate the initial position (to return to)
+      const initialYPosition = -6.0;
+      
+      // Linear interpolation between final position and initial position
+      baseYPosition = finalYPosition * (1 - loopProgress) + initialYPosition * loopProgress;
+      
+      // For rotation, maintain the scroll-based rotation but start blending back to initial
+      const finalRotation = time * 0.2 + (loopStartPoint - appearThreshold) * Math.PI * 4;
+      const initialRotation = time * 0.2; // Just the time component
+      
+      // Blend between final and initial rotation
+      rotationY = finalRotation * (1 - loopProgress) + initialRotation * loopProgress;
+      
+      // For scale, blend from maximum scale back to minimum
+      const finalScale = 20.8 + (loopStartPoint - appearThreshold) * (45.2 - 20.8);
+      const initialScale = 20.8;
+      
+      // Blend between final and initial scale
+      targetScale = finalScale * (1 - loopProgress) + initialScale * loopProgress;
+    }
+    
+    // Floating animation remains
+    const floatAmplitude = 0.1;
+    const floatFrequency = 1.0;
     const floatY = Math.sin(time * floatFrequency) * floatAmplitude;
-    
-    // Apply rotation - REDUCED values for slower rotation
-    // Smooth continuous rotation that speeds up slightly with scroll
-    const baseRotationSpeed = 0.07; // Base rotation speed (REDUCED from 0.2)
-    const additionalRotationSpeed = 0.1 * scrollProgress; // Additional rotation (REDUCED from 0.3)
-    
-    // Calculate how many full rotations to complete during the fall
-    // This gives more control over exact rotation amount during the fall
-    const totalRotationsWanted = 1.0; // Only rotate once during the entire descent
-    const rotationY = (scrollProgress * totalRotationsWanted * Math.PI * 2) + (time * baseRotationSpeed);
-    
-    const rotationX = Math.sin(time * 0.5) * 0.1; // Slight tilt back and forth
-    
-    // Apply mouse-based rotation influence
-    // Mouse X controls Y rotation (left-right affects the same spinning rotation)
-    // Mouse Y controls X rotation (up-down tilt)
-    const mouseInfluenceStrength = 0.3; // How much the mouse affects rotation
-    const upDownReduceFactor = 0.4; // Reduce the up/down tilt effect
-    const mouseRotationX = mousePosition.y * mouseInfluenceStrength * upDownReduceFactor; // Reduced up-down tilt
-    const mouseRotationY = -mousePosition.x * mouseInfluenceStrength * 1.5; // Left-right affects Y rotation
-    
-    // Update target values (smooth transitions will be applied below)
-    targetPositionRef.current.set(0, targetY + floatY, 2); // Set z=2 to position in front
+
+    // Mouse influence remains
+    const mouseRotationX = mousePosition.y * 0.3 * 0.4;
+    const mouseRotationY = -mousePosition.x * 0.3 * 1.5;
+
+    // Update target values
+    targetPositionRef.current.set(0, baseYPosition + floatY, 2);
     targetRotationRef.current.set(
-      rotationX + mouseRotationX,             // Add mouse Y influence to X rotation
-      rotationY + mouseRotationY,             // Add mouse X influence to Y rotation (spin)
-      0                                       // No Z rotation
+      mouseRotationX, // Keep mouse influence on X rotation
+      rotationY + mouseRotationY, // Combined auto-rotation and mouse influence
+      0
     );
     
-    // Scale based on scroll progress
-    const startScale = 30.8;
-    const endScale = 38.2;
-    targetScaleRef.current = startScale + (scrollProgress * (endScale - startScale));
-    
-    // Apply smooth transitions for more fluid movement
-    // Position smoothing
-    const positionLerpFactor = 0.05; // Lower value = smoother but slower transitions
+    // Update target scale
+    targetScaleRef.current = targetScale;
+
+    // Keep existing smooth transitions
+    const positionLerpFactor = 0.05;
     groupRef.current.position.lerp(targetPositionRef.current, positionLerpFactor);
-    
-    // Rotation smoothing
+
     const currentRotation = groupRef.current.rotation;
     currentRotation.x += (targetRotationRef.current.x - currentRotation.x) * 0.05;
     
-    // Special handling for Y rotation to avoid discontinuities
     const rotationLerpFactor = 0.05;
     const shortestAngle = ((((targetRotationRef.current.y - currentRotation.y) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     currentRotation.y += shortestAngle * rotationLerpFactor;
     
-    // Add Z rotation smoothing for mouse X movement
-    currentRotation.z += (targetRotationRef.current.z - currentRotation.z) * 0.05;
-    
-    // Scale smoothing
     const currentScale = groupRef.current.scale.x;
     const newScale = currentScale + (targetScaleRef.current - currentScale) * 0.08;
     groupRef.current.scale.set(newScale, newScale, newScale);
+    
+    groupRef.current.updateMatrixWorld();
   });
   
   return (
-    <group ref={groupRef} position={[0, 6.0, 2]} renderOrder={1000}>
-      <primitive object={scene} />
+    <group ref={groupRef} position={[0, -6.0, 2]} renderOrder={1000}>
+      <primitive object={crystalRef.current || crystalScene} />
       
       {/* Add a point light inside the crystal for glow effect */}
       <pointLight 
-        color="#80c0ff" 
-        intensity={1.5} 
-        distance={2} 
-        decay={2} 
+        color="#222233" 
+        intensity={0.4} 
+        distance={1.8} 
+        decay={2.8} 
       />
+      
+      {/* Add a subtle ambient light to illuminate the texture */}
+      <ambientLight color="#334455" intensity={0.15} />
     </group>
   );
 }
