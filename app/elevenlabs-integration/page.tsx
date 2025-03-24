@@ -1,6 +1,7 @@
 "use client";
 
 import { Conversation } from './conversation';
+import AudioVisualizer from './AudioVisualizer';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -45,6 +46,15 @@ export default function Home() {
         </h1>
         <p className="text-gray-400 mb-8">Talk to our AI assistant using your voice</p>
         
+        {/* Audio Reactive Visualizer */}
+        <div className="w-full max-w-md mb-8">
+          <AudioVisualizer />
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            Interactive visualization - reacts to AI voice patterns
+          </p>
+        </div>
+        
+        {/* Conversation Interface */}
         <div className="bg-slate-800 p-8 rounded-lg shadow-lg w-full max-w-md border border-blue-900">
           <Conversation />
         </div>

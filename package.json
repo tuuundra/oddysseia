@@ -3,13 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "npm run dev:frontend & npm run dev:backend",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "dev:frontend": "vite",
-    "dev:backend": "node backend/server.js",
-    "dev": "npm run dev:frontend & npm run dev:backend"
+    "dev:backend": "node backend/server.js"
   },
   "dependencies": {
     "@11labs/client": "^0.0.8",
