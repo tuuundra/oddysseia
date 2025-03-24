@@ -12,9 +12,9 @@ const createMaterialWithGlow = (originalMaterial: THREE.Material, glowStrength: 
   if (material instanceof THREE.MeshStandardMaterial) {
     // Create a custom onBeforeCompile handler to inject Fresnel code
     material.onBeforeCompile = (shader) => {
-      // Wintery magical color palette - with reduced intensity
-      const baseGlowColor = new THREE.Color('#6b85ff').multiplyScalar(0.6); // Softened cool blue
-      const activeGlowColor = new THREE.Color('#a88bff').multiplyScalar(0.7); // Softened mystical purple
+      // Pure white color palette without any tint
+      const baseGlowColor = new THREE.Color('#ffffff').multiplyScalar(0.8); // Pure white base
+      const activeGlowColor = new THREE.Color('#ffffff').multiplyScalar(1.0); // Brighter white
       
       // Calculate color based on glow strength
       const glowColor = new THREE.Color();

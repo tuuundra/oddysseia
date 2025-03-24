@@ -3,6 +3,7 @@
 import Scene from "@/components/Scene";
 import { useState, useEffect, useRef, useMemo } from "react";
 import SceneContainer from "@/components/SceneContainer";
+import ElevenLabsButton from "@/components/ElevenLabsButton";
 
 // Logo component with glitch effect
 const GlitchLogo = () => {
@@ -234,6 +235,17 @@ export default function Home() {
             state of <br/>
             mind.
           </div>
+        </div>
+        
+        {/* ElevenLabs Button - positioned near the floating rock */}
+        <div id="elevenlabs-button-container" style={{
+            position: 'fixed',
+            bottom: '120px',
+            right: '140px',
+            pointerEvents: 'auto',
+            zIndex: 9500
+          }}>
+          <ElevenLabsButton />
         </div>
         
         {/* HTML content for scrollytelling */}
