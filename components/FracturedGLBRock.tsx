@@ -5,93 +5,8 @@ import * as THREE from 'three';
 
 // Create a utility function for glow effects
 const createMaterialWithGlow = (originalMaterial: THREE.Material, glowStrength: number = 0) => {
-  // Clone the material to avoid modifying the original
-  const material = originalMaterial.clone();
-  
-  // Set up shader-based edge glow (Fresnel effect)
-  if (material instanceof THREE.MeshStandardMaterial) {
-    // Create a custom onBeforeCompile handler to inject Fresnel code
-    material.onBeforeCompile = (shader) => {
-      // Pure white color palette without any tint
-      const baseGlowColor = new THREE.Color('#ffffff').multiplyScalar(0.8); // Pure white base
-      const activeGlowColor = new THREE.Color('#ffffff').multiplyScalar(1.0); // Brighter white
-      
-      // Calculate color based on glow strength
-      const glowColor = new THREE.Color();
-      if (glowStrength > 0.7) {
-        // Shift toward the more intense color for strong glow
-        glowColor.copy(baseGlowColor).lerp(activeGlowColor, (glowStrength - 0.7) * 3.3);
-      } else {
-        glowColor.copy(baseGlowColor);
-      }
-      
-      // Add uniforms without additional varyings
-      shader.uniforms.glowColor = { value: glowColor };
-      shader.uniforms.glowStrength = { value: glowStrength };
-      shader.uniforms.fresnelPower = { value: 4.0 }; // Increased from 2.0 for sharper edge effect
-      
-      // We don't need to inject vNormal as it's already defined by THREE.js
-      // Only add the worldPosition which isn't defined by default
-      shader.vertexShader = shader.vertexShader.replace(
-        'varying vec3 vViewPosition;',
-        'varying vec3 vViewPosition;\nvarying vec3 vWorldPosition;'
-      );
-      
-      // Add vWorldPosition in vertex shader main function
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <worldpos_vertex>',
-        '#include <worldpos_vertex>\nvWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;'
-      );
-      
-      // Inject uniforms in fragment shader without redefining vNormal
-      shader.fragmentShader = shader.fragmentShader.replace(
-        'uniform float opacity;',
-        'uniform float opacity;\nuniform vec3 glowColor;\nuniform float glowStrength;\nuniform float fresnelPower;\nvarying vec3 vWorldPosition;'
-      );
-      
-      // Add Fresnel calculation to output fragment
-      // Use the existing vNormal provided by THREE.js
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-        
-        // Calculate view direction
-        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-        
-        // Fresnel effect - stronger at edges, weaker on front-facing surfaces
-        float fresnel = pow(1.0 - max(0.0, dot(viewDir, vNormal)), fresnelPower);
-        
-        // Apply a much sharper threshold to only keep very edge-like fresnel values
-        float edgeThreshold = 0.3; // Only keep the outer 30% of the fresnel effect
-        float edgeMask = smoothstep(edgeThreshold, 1.0, fresnel);
-        
-        // Apply glow strength with the edge mask - reduced intensity to 2.0
-        float edgeGlow = edgeMask * glowStrength * 0.2;
-        
-        // Add glow only to the edges - with reduced overall intensity
-        totalEmissiveRadiance += glowColor * edgeGlow;`
-      );
-    };
-    
-    // Make fragment slightly more transparent to enhance edge appearance
-    if (glowStrength > 0) {
-      material.transparent = true;
-      material.opacity = 1; // Increased from 0.85 for less transparency
-      
-      // Reduce the roughness and increase metalness to enhance reflections at edges
-      material.roughness = 0.5;
-      material.metalness = 0.7;
-      
-      // Zero out emissive for surface, letting shader handle all glow
-      material.emissive.set(0, 0, 0);
-      material.emissiveIntensity = 0;
-    }
-    
-    // Flag the material as needing an update
-    material.needsUpdate = true;
-  }
-  
-  return material;
+  // Simply return a clone of the original material without any glow effects
+  return originalMaterial.clone();
 };
 
 const FracturedGLBRock = () => {
@@ -99,9 +14,7 @@ const FracturedGLBRock = () => {
   
   // Track rotation of the entire rock group
   const rockRotation = useRef({
-    x: 0,
-    y: 0,
-    z: 0
+    y: 0 // Only need Y-axis rotation now
   });
   
   // Use an absolute path to the GLB file
@@ -157,6 +70,14 @@ const FracturedGLBRock = () => {
   
   // Add fragment neighbors reference at the top with other refs
   const fragmentNeighborsRef = useRef(new Map<string, string[]>());
+  
+  const pivotOffsetX = 0; // Adjust to move pivot left/right
+  const pivotOffsetY = 0; // Adjust to move pivot up/down
+  const pivotOffsetZ = 0; // Adjust to move pivot forward/back
+  
+  const rockOffsetX = 0.2; // Adjust to move rock left/right relative to pivot
+  const rockOffsetY = 0; // Adjust to move rock up/down relative to pivot
+  const rockOffsetZ = 0.05; // Adjust to move rock forward/back relative to pivot
   
   // Mouse event handlers
   useEffect(() => {
@@ -479,17 +400,19 @@ const FracturedGLBRock = () => {
     const t = clock.getElapsedTime();
     
     // Update the overall rotation of the entire rock group
-    // Using very slow rotation speeds for a subtle effect
-    rockRotation.current.y += 0.0005; // Slow rotation around Y axis
-    rockRotation.current.x = Math.sin(t * 0.1) * 0.01; // Very subtle tilt on X axis
-    rockRotation.current.z = Math.cos(t * 0.08) * 0.005; // Extremely subtle tilt on Z axis
+    // Using very slow rotation speed for a subtle effect
+    rockRotation.current.y -= -0.0015; // Negative value for counter-clockwise rotation
     
     // Apply the rotation to the entire group
-    if (groupRef.current) {
-      groupRef.current.rotation.x = rockRotation.current.x;
-      groupRef.current.rotation.y = rockRotation.current.y;
-      groupRef.current.rotation.z = rockRotation.current.z;
-    }
+    groupRef.current.rotation.y = rockRotation.current.y;
+    
+    // Add a slight tilt to make the rotation more horizontal
+    const tiltAngle = Math.PI / 20; // ~90 degrees tilt
+    groupRef.current.rotation.x = tiltAngle; // Tilt forward around X-axis
+    
+    // Add a slight roll to make the rotation more dynamic
+    const rollAngle = Math.sin(t * 0.1) * 0.01; // Subtle oscillating roll
+    groupRef.current.rotation.z = rollAngle;
     
     // Check if mouse has been still for a while
     const MOUSE_STILL_THRESHOLD = 100; // ms
@@ -662,30 +585,11 @@ const FracturedGLBRock = () => {
     
     // Reset all glow strengths first for re-calculation
     fragmentsMap.current.forEach((fragmentData, name) => {
-      // Apply smoother glow decay with progressive slowing
-      // The lower the glow value, the slower it decays (prevents the sharp disappearance)
-      const decayRate = 0.9 - 0.3 * (1 - fragmentData.currentGlow); // Decay slows as glow decreases
-      fragmentData.currentGlow *= decayRate > 0.6 ? decayRate : 0.6; // Ensure decay never goes below 0.6
-      
-      // Apply much lower minimum threshold to avoid sharp disappearance
-      if (fragmentData.currentGlow < 0.001) {
-        fragmentData.currentGlow = 0;
-      }
+      // Always set glow to 0 instead of calculating glow values
+      fragmentData.currentGlow = 0;
     });
     
-    // Set glow strength for hovered fragment
-    if (hoveredMesh) {
-      const hoveredName = hoveredMesh.name;
-      const hoveredData = fragmentsMap.current.get(hoveredName);
-      
-      if (hoveredData) {
-        // Set maximum glow for hovered fragment only
-        hoveredData.currentGlow = 1.0;
-        
-        // Remove neighbor diffusion - only glow the exact fragment being hovered
-        // No code needed here as we're not applying glow to neighbors anymore
-      }
-    }
+    // Removed glow setting for hovered fragment - no longer needed since glow is disabled
     
     // Update all fragments positions based on hover state
     fragmentsMap.current.forEach((fragmentData, name) => {
@@ -822,28 +726,11 @@ const FracturedGLBRock = () => {
       
       // Apply glow effect with outline appearance
       if (currentGlow > 0) {
-        // Only update material if meaningful glow is present
-        if (Array.isArray(mesh.material)) {
-          // Handle multi-materials
-          mesh.material = (mesh.material as THREE.Material[]).map((mat, index) => {
-            const originalMat = Array.isArray(fragmentData.originalMaterial) 
-              ? fragmentData.originalMaterial[index]
-              : fragmentData.originalMaterial;
-            
-            return createMaterialWithGlow(originalMat, currentGlow);
-          });
-        } else {
-          // Single material
-          const originalMat = Array.isArray(fragmentData.originalMaterial)
-            ? fragmentData.originalMaterial[0]
-            : fragmentData.originalMaterial;
-            
-          mesh.material = createMaterialWithGlow(originalMat, currentGlow);
-        }
+        // This condition will never be true now since currentGlow is always 0
+        // The code inside is kept for reference but will never execute
         
-        // Apply subtle scale boost - smaller boost for outline effect
-        const scaleBoost = 1.0 + currentGlow * 0.02; // Reduced from 0.05 to 0.02
-        mesh.scale.set(scaleBoost, scaleBoost, scaleBoost);
+        // ... existing code ...
+        
       } else {
         // Reset material when no glow
         if (Array.isArray(fragmentData.originalMaterial)) {
@@ -853,7 +740,7 @@ const FracturedGLBRock = () => {
           mesh.material = (fragmentData.originalMaterial as THREE.Material).clone();
         }
         
-        // Reset scale
+        // Keep scale at 1 (normal size)
         mesh.scale.set(1, 1, 1);
       }
     });
@@ -895,9 +782,14 @@ const FracturedGLBRock = () => {
   });
   
   return (
-    <group ref={groupRef} rotation={[rockRotation.current.x, rockRotation.current.y, rockRotation.current.z]}>
-      {/* The actual fractured rock model */}
-      <primitive object={scene.current} />
+    <group ref={groupRef} position={[0, 0, 0]}>
+      {/* The actual fractured rock model - position relative to pivot */}
+      <group position={[rockOffsetX, rockOffsetY, rockOffsetZ]}>
+        <primitive 
+          object={scene.current} 
+          position={[0, 0, 0]}  // Keep rock at origin relative to its parent group
+        />
+      </group>
     </group>
   );
 };

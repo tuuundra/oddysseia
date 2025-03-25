@@ -32,7 +32,7 @@ const ElevenLabsButton = () => {
         </div>
         
         <div className="mt-2 font-mono text-xs text-gray-400">
-          ElevenLabs AI
+          
         </div>
       </div>
     </Link>

@@ -14,6 +14,7 @@ import { FBXLoader } from 'three-stdlib';
 import Stumpington from './Stumpington';
 import { ScrollytellingScene } from './ScrollytellingScene';
 import { EffectComposer, ChromaticAberration, Noise, Glitch } from '@react-three/postprocessing';
+import FloatingText from './FloatingText';
 
 // Add TypeScript declarations for the global variables we use
 declare global {
@@ -1276,6 +1277,14 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
           
           {/* Snow effects */}
           <SimpleSnow />
+        </group>
+        
+        {/* Add the floating text near the rock */}
+        <group renderOrder={1}>
+          <FloatingText 
+            position={[25, 1, -20]} // Position above and to the right of the rock
+            rockPosition={[23, 0, -22]} // Rock's position
+          />
         </group>
       </>
     );
