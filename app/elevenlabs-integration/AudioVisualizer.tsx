@@ -15,9 +15,9 @@ const AudioVisualizer = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
-  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   
   // Debug info
   const [audioFound, setAudioFound] = useState(false);
@@ -25,7 +25,15 @@ const AudioVisualizer = () => {
 
   // Initialize audio analysis
   useEffect(() => {
-    console.log("Setting up audio analysis");
+    // Only set up the audio analysis when the conversation is connected
+    if (conversation.status !== 'connected') {
+      setAudioFound(false);
+      setAnalysisActive(false);
+      setAudioAmplitude(0);
+      return;
+    }
+    
+    console.log("Setting up audio analysis with Web Audio API - conversation is connected!");
     
     const setupAudioAnalysis = () => {
       try {
@@ -34,104 +42,92 @@ const AudioVisualizer = () => {
         const audioContext = new AudioContext();
         audioContextRef.current = audioContext;
         
-        // Create analyzer node with small FFT for better performance
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-        
-        // Setup data array for analysis
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        dataArrayRef.current = dataArray;
-        
-        // Function to analyze audio in real-time
-        const analyzeAudio = () => {
-          if (!analyserRef.current || !dataArrayRef.current) return;
+        // Resume the audio context (needed after user interaction)
+        audioContext.resume().then(() => {
+          console.log("AudioContext resumed successfully");
           
-          // Get frequency data
-          analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+          // Create analyzer node with small FFT for better performance
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          analyserRef.current = analyser;
           
-          // Calculate average amplitude (0-1)
-          let sum = 0;
-          for (let i = 0; i < dataArrayRef.current.length; i++) {
-            sum += dataArrayRef.current[i];
-          }
-          const average = sum / dataArrayRef.current.length / 255;
+          // Setup data array for analysis
+          const bufferLength = analyser.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
+          dataArrayRef.current = dataArray;
           
-          // Apply a threshold to filter out background noise
-          const thresholdedAverage = average > 0.05 ? average : 0;
+          // Create oscillator as audio source (since we can't access ElevenLabs audio directly)
+          const oscillator = audioContext.createOscillator();
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+          oscillatorRef.current = oscillator;
           
-          // Update state with current amplitude
-          setAudioAmplitude(thresholdedAverage);
+          // Create gain node to control oscillator volume
+          const gainNode = audioContext.createGain();
+          gainNode.gain.value = 0; // Start with no volume
+          gainNodeRef.current = gainNode;
           
-          // Schedule next frame
-          animationFrameRef.current = requestAnimationFrame(analyzeAudio);
-        };
-        
-        // Find all audio elements on the page that might be playing speech
-        const findAndConnectToAudio = () => {
-          const audioElements = document.querySelectorAll('audio');
-          console.log(`Found ${audioElements.length} audio elements`, audioElements);
+          // Connect oscillator -> gain -> analyzer -> destination
+          oscillator.connect(gainNode);
+          gainNode.connect(analyser);
+          analyser.connect(audioContext.destination);
           
-          if (audioElements.length > 0) {
-            // Use the first audio element we find
-            const audioElement = audioElements[0];
-            audioElementRef.current = audioElement;
-            setAudioFound(true);
+          // Start the oscillator
+          oscillator.start();
+          
+          setAudioFound(true);
+          setAnalysisActive(true);
+          
+          // Function to analyze audio in real-time
+          const analyzeAudio = () => {
+            if (!analyserRef.current || !dataArrayRef.current || !gainNodeRef.current) return;
             
-            // Create audio source from the element
-            const source = audioContext.createMediaElementSource(audioElement);
-            audioSourceRef.current = source;
-            
-            // Connect the audio through our analyzer and to the destination
-            source.connect(analyser);
-            analyser.connect(audioContext.destination);
-            
-            // Start analysis loop
-            analyzeAudio();
-            setAnalysisActive(true);
-            console.log("Audio analysis started!");
-          }
-        };
-        
-        // Check for existing audio elements
-        findAndConnectToAudio();
-        
-        // If no audio elements found, watch for when they are added to the DOM
-        if (!audioFound) {
-          console.log("No audio elements found initially, setting up observer");
-          
-          const observer = new MutationObserver((mutations) => {
-            for (const mutation of mutations) {
-              if (mutation.addedNodes.length) {
-                // Check if any of the added nodes are audio elements or contain audio elements
-                mutation.addedNodes.forEach((node) => {
-                  // Check if the node itself is an audio element
-                  if (node.nodeName === 'AUDIO') {
-                    console.log("Audio element found via mutation observer!");
-                    findAndConnectToAudio();
-                    observer.disconnect();
-                  } 
-                  // Check if the node contains any audio elements
-                  else if (node instanceof Element) {
-                    const audioInNode = node.querySelectorAll('audio');
-                    if (audioInNode.length > 0) {
-                      console.log("Audio element found inside added node!");
-                      findAndConnectToAudio();
-                      observer.disconnect();
-                    }
-                  }
-                });
-              }
+            // Update gain based on speaking state
+            if (conversation.isSpeaking) {
+              // Generate a pulsing effect when speaking (values between 0.1 and 0.3)
+              const pulsingValue = 0.1 + Math.sin(Date.now() / 200) * 0.1;
+              gainNodeRef.current.gain.value = pulsingValue;
+            } else {
+              gainNodeRef.current.gain.value = 0;
             }
-          });
+            
+            // Get frequency data
+            analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+            
+            // Calculate average amplitude (0-1)
+            let sum = 0;
+            for (let i = 0; i < dataArrayRef.current.length; i++) {
+              sum += dataArrayRef.current[i];
+            }
+            const average = sum / dataArrayRef.current.length / 255;
+            
+            // Apply a threshold to filter out background noise and boost the signal
+            // This gives better visual effect for the sphere
+            let finalAmplitude = average;
+            
+            // If speaking, ensure minimum amplitude and add some variation
+            if (conversation.isSpeaking) {
+              // Add randomness to make it more lifelike when speaking
+              const randomFactor = 1 + (Math.random() * 0.2 - 0.1); // +/- 10%
+              finalAmplitude = Math.max(0.3, average * 1.5 * randomFactor);
+            } else {
+              // Lower when not speaking
+              finalAmplitude = average * 0.2;
+            }
+            
+            // Update state with current amplitude
+            setAudioAmplitude(finalAmplitude);
+            
+            // Schedule next frame
+            animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+          };
           
-          // Observe the entire document for changes
-          observer.observe(document.body, {
-            childList: true,
-            subtree: true
-          });
-        }
+          // Start analysis loop
+          analyzeAudio();
+          console.log("Audio analysis started!");
+        }).catch(error => {
+          console.error("Failed to resume AudioContext:", error);
+        });
       } catch (err) {
         console.error("Error setting up audio analysis:", err);
       }
@@ -146,8 +142,12 @@ const AudioVisualizer = () => {
         cancelAnimationFrame(animationFrameRef.current);
       }
       
-      if (audioSourceRef.current) {
-        audioSourceRef.current.disconnect();
+      if (oscillatorRef.current) {
+        oscillatorRef.current.stop();
+      }
+      
+      if (gainNodeRef.current) {
+        gainNodeRef.current.disconnect();
       }
       
       if (analyserRef.current) {
@@ -158,12 +158,12 @@ const AudioVisualizer = () => {
         audioContextRef.current.close();
       }
     };
-  }, []);
+  }, [conversation.status, conversation.isSpeaking]);
   
   // Debug data
   useEffect(() => {
     // Log amplitude changes when they're significant
-    if (audioAmplitude > 0.1) {
+    if (audioAmplitude > 0.3) {
       console.log(`Audio amplitude: ${audioAmplitude.toFixed(2)}`);
     }
   }, [audioAmplitude]);
@@ -195,7 +195,7 @@ const AudioVisualizer = () => {
         <pointLight position={[-10, -10, -10]} color="#4b6dff" intensity={0.2} />
         
         {/* Audio-reactive sphere using actual audio amplitude */}
-        <AudioReactiveSphere amplitude={audioAmplitude} isSpeaking={audioAmplitude > 0.1} />
+        <AudioReactiveSphere amplitude={audioAmplitude} isSpeaking={conversation.isSpeaking} />
         
         {/* Environment and controls */}
         <Environment preset="night" />
