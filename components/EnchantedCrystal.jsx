@@ -180,14 +180,15 @@ export default function EnchantedCrystal() {
     
     const time = clock.getElapsedTime();
     
-    // Crystal appears at scroll offset 0.1317
-    const appearThreshold = 0.1317;
+    // Lower the appear threshold to make the crystal appear sooner
+    const appearThreshold = 0.10; // Changed from 0.1317
     
     // Calculate visibility and position based on scroll offset
     const visibility = Math.max(0, offset - appearThreshold);
     
-    // Continuous vertical movement based purely on scroll, starting at the threshold
-    const baseYPosition = -6.0 + Math.max(0, (offset - appearThreshold) * 20.0); // Faster upward movement
+    // Modify position calculation for earlier appearance and faster initial movement
+    // Start at a higher position (-4.0 instead of -6.0) and use a higher multiplier (25.0 instead of 20.0)
+    const baseYPosition = -5.0 + Math.max(0, (offset - appearThreshold) * 25.0); // Faster upward movement
     
     // Continuous rotation that never stops
     const rotationY = time * 0.2 + Math.max(0, offset - appearThreshold) * Math.PI * 4; // Time-based + scroll-based rotation
@@ -214,8 +215,8 @@ export default function EnchantedCrystal() {
     const endScale = 45.2;
     targetScaleRef.current = startScale + Math.max(0, (offset - appearThreshold)) * (endScale - startScale);
 
-    // Keep existing smooth transitions
-    const positionLerpFactor = 0.05;
+    // Increase the position lerp factor for faster response to scroll changes
+    const positionLerpFactor = 0.08; // Changed from 0.05 for faster movement
     groupRef.current.position.lerp(targetPositionRef.current, positionLerpFactor);
 
     const currentRotation = groupRef.current.rotation;
@@ -233,7 +234,7 @@ export default function EnchantedCrystal() {
   });
   
   return (
-    <group ref={groupRef} position={[0, -6.0, 2]} renderOrder={1000}>
+    <group ref={groupRef} position={[0, -4.0, 2]} renderOrder={1000}>
       <primitive object={crystalRef.current || crystalScene} />
       
       {/* Add a point light inside the crystal for glow effect */}

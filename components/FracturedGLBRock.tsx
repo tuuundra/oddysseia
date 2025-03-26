@@ -804,11 +804,11 @@ const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
       {/* Invisible hover area for text */}
       <mesh
         ref={hoverAreaRef}
-        position={[0.1, 0, 0.1]}
+        position={[0, 0, 0]}
         visible={true}
         renderOrder={-1} // Render before other objects
       >
-        <sphereGeometry args={[0.4, 32, 32]} /> // Adjust radius to match rock size
+        <sphereGeometry args={[0.3, 12, 22]} /> // Adjust radius to match rock size
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 

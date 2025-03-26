@@ -138,11 +138,11 @@ function OscillatingGradient() {
     const material = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
-        // Colors updated from the reference image
-        colorA: { value: new THREE.Color('#808692') }, // Oslo Gray
-        colorB: { value: new THREE.Color('#D9DBE0') }, // Iron
-        colorC: { value: new THREE.Color('#B7BCCC') }, // Heather
-        colorD: { value: new THREE.Color('#BBC4CB') }  // Loblolly
+        // Set all colors to black
+        colorA: { value: new THREE.Color('#000000') }, // Black
+        colorB: { value: new THREE.Color('#000000') }, // Black
+        colorC: { value: new THREE.Color('#000000') }, // Black
+        colorD: { value: new THREE.Color('#000000') }  // Black
       },
       vertexShader: `
         varying vec2 vUv;
@@ -165,28 +165,8 @@ function OscillatingGradient() {
         }
         
         void main() {
-          // Significantly slower oscillation for the subtle wash effect seen in reference
-          float t1 = oscillate(0.0, 1.0, 0.04); // Very slow oscillation
-          float t2 = oscillate(0.0, 1.0, 0.03); // Even slower for second color pair
-          
-          // First mix between color pairs
-          vec3 color1 = mix(colorA, colorB, t1);
-          vec3 color2 = mix(colorC, colorD, t2);
-          
-          // Create a very gradual gradient based on position
-          float gradientFactor = vUv.y * 0.3 + 0.35; // 0.35 to 0.65 range - subtle
-          
-          // Then mix between the resulting colors based on position and time
-          float mixFactor = oscillate(0.3, 0.7, 0.02) + gradientFactor;
-          mixFactor = clamp(mixFactor, 0.0, 1.0);
-          
-          vec3 finalColor = mix(color1, color2, mixFactor);
-          
-          // Add very subtle noise
-          float noise = fract(sin(dot(vUv, vec2(12.9898, 78.233)) * 500.0) * 43758.5453);
-          finalColor = mix(finalColor, vec3(noise), 0.01); // Almost imperceptible noise
-          
-          gl_FragColor = vec4(finalColor, 1.0);
+          // Since all colors are black, just output black
+          gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         }
       `,
       transparent: false,
@@ -378,8 +358,8 @@ function GlowingDotGrid() {
   const circlesRef = useRef();
   const timeRef = useRef(0);
   
-  // Appearance threshold - changed to appear earlier
-  const dotAppearancePoint = 0.125;
+  // Appearance threshold - synchronize with the crystal's appearance
+  const dotAppearancePoint = 0.08; // Changed from 0.125 to match crystal's appearThreshold
   
   // Calculate grid visibility and opacity
   const gridOpacity = useMemo(() => {
@@ -553,7 +533,7 @@ export default function GradientScene() {
   return (
     <>
       <GradientCameraController />
-      <fog attach="fog" color="#959BB5" near={5} far={35} />
+      <fog attach="fog" color="#000000" near={5} far={35} />
       <ambientLight intensity={1.5} />
       <OscillatingGradient />
       <DiffusingColorLayer />

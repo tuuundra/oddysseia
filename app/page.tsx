@@ -14,9 +14,10 @@ const GlitchLogo = () => {
       className="font-bold text-[3.5rem] tracking-tighter"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
+      style={{ display: 'none' }}
     >
       <h1 className={`text-white ${isHovering ? 'glitch-text' : ''} text-glow-strong`} data-text="ODDYSSEIA">
-        NORDWEG
+        ODDYSSEIA
       </h1>
     </div>
   );
@@ -74,6 +75,48 @@ const HtmlContent = () => {
       zIndex: 100
     }}>
       {/* Empty container for future content if needed */}
+    </div>
+  );
+};
+
+// Component to toggle debug info visibility
+const DebugToggle = () => {
+  const [isVisible, setIsVisible] = useState(true);
+  
+  const toggleVisibility = () => {
+    setIsVisible(!isVisible);
+    
+    // Find and toggle any debug elements at bottom left
+    const debugElements = document.querySelectorAll('[style*="bottom"][style*="left"]');
+    debugElements.forEach(el => {
+      if (el instanceof HTMLElement && 
+          (el.textContent?.includes('Scroll') || 
+           el.textContent?.includes('Position') || 
+           el.textContent?.includes('Scene') ||
+           el.textContent?.includes('Percentage'))) {
+        el.style.display = isVisible ? 'none' : 'block';
+      }
+    });
+  };
+  
+  return (
+    <div 
+      onClick={toggleVisibility}
+      style={{
+        position: 'fixed',
+        bottom: '20px',
+        left: '20px',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        color: 'white',
+        padding: '5px 10px',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '12px',
+        zIndex: 9999,
+        pointerEvents: 'auto'
+      }}
+    >
+      {isVisible ? 'Hide Debug' : 'Show Debug'}
     </div>
   );
 };
@@ -157,7 +200,8 @@ export default function Home() {
               fontFamily: "var(--font-courier-prime), 'Courier', monospace",
               fontWeight: 500,
               fontSize: '15px',
-              letterSpacing: '0.02em'
+              letterSpacing: '0.02em',
+              display: 'none'
             }} 
             className="font-mono leading-relaxed pl-1"
           >
@@ -169,7 +213,8 @@ export default function Home() {
               fontFamily: "var(--font-courier-prime), 'Courier', monospace",
               fontWeight: 500,
               fontSize: '15px',
-              letterSpacing: '0.02em'
+              letterSpacing: '0.02em',
+              display: 'none'
             }} 
             className="font-mono leading-relaxed pl-1"
           >
@@ -181,7 +226,8 @@ export default function Home() {
               fontFamily: "var(--font-courier-prime), 'Courier', monospace",
               fontWeight: 500,
               fontSize: '15px',
-              letterSpacing: '0.02em'
+              letterSpacing: '0.02em',
+              display: 'none'
             }} 
             className="font-mono leading-relaxed pl-1"
           >
@@ -195,7 +241,7 @@ export default function Home() {
             top: '65px',
             right: '140px',
             width: '320px',
-            display: 'flex',
+            display: 'none',
             flexDirection: 'column',
             alignItems: 'flex-end',
             pointerEvents: 'auto',
@@ -243,10 +289,14 @@ export default function Home() {
             bottom: '120px',
             right: '140px',
             pointerEvents: 'auto',
-            zIndex: 9500
+            zIndex: 9500,
+            display: 'none'
           }}>
           <ElevenLabsButton />
         </div>
+        
+        {/* Debug toggle button */}
+        <DebugToggle />
         
         {/* HTML content for scrollytelling */}
         <HtmlContent />
