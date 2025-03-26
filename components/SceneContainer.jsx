@@ -17,37 +17,60 @@ export default function SceneContainer() {
   const [showSecondScene, setShowSecondScene] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
+  const [transitionPhase, setTransitionPhase] = useState(0); // 0: not started, 1: blur/fade first scene, 2: video playing, 3: fade out
   const videoRef = useRef(null);
+  const firstSceneRef = useRef(null);
   
   // Function to handle transition trigger
   const handleTransitionTrigger = () => {
     console.log("%c 🚀 TRANSITION TRIGGERED! 🚀", "background: #4CAF50; color: white; font-size: 20px; padding: 10px;");
     
-    // Set transitioning state to show the video
+    // Start the transition sequence
     setIsTransitioning(true);
+    setTransitionPhase(1);
     
-    // Start the video with a slight delay to ensure DOM is ready
-    setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = 0; // Reset video to start
-        const playPromise = videoRef.current.play();
-        
-        // Handle autoplay restrictions
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Video play was prevented:", error);
-            // Fall back to showing the second scene directly
-            handleVideoEnded();
-          });
+    // Phase 1: Blur and fade the first scene
+    if (firstSceneRef.current) {
+      firstSceneRef.current.style.filter = 'blur(0px)';
+      firstSceneRef.current.style.transition = 'filter 1.2s ease-in-out, opacity 1.2s ease-in-out';
+      
+      // Start the blur effect
+      setTimeout(() => {
+        if (firstSceneRef.current) {
+          firstSceneRef.current.style.filter = 'blur(10px)';
+          firstSceneRef.current.style.opacity = '0.6';
         }
-      }
-    }, 50);
+      }, 50);
+    }
+    
+    // Phase 2: Fade in the video after a delay
+    setTimeout(() => {
+      setTransitionPhase(2);
+      
+      // Start video playback with a slight delay to ensure DOM is ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.currentTime = 0;
+          const playPromise = videoRef.current.play();
+          
+          // Handle autoplay restrictions
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error("Video play was prevented:", error);
+              // Fall back to showing the second scene directly
+              handleVideoEnded();
+            });
+          }
+        }
+      }, 100);
+    }, 800); // Delay to let the blur effect complete
   };
   
   // Handle video ended event
   const handleVideoEnded = () => {
     console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
     setVideoFinished(true);
+    setTransitionPhase(3);
     
     // Switch to second scene after video ends
     setShowSecondScene(true);
@@ -57,7 +80,8 @@ export default function SceneContainer() {
     setTimeout(() => {
       setIsTransitioning(false);
       setVideoFinished(false);
-    }, 300);
+      setTransitionPhase(0);
+    }, 500);
   };
   
   // Window scroll handler
@@ -126,8 +150,8 @@ export default function SceneContainer() {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            opacity: videoFinished ? 0 : 1,
-            transition: 'opacity 0.3s ease-out'
+            opacity: transitionPhase === 1 ? 0 : (videoFinished ? 0 : 1),
+            transition: 'opacity 1s ease-out'
           }}
         >
           <video
@@ -137,9 +161,12 @@ export default function SceneContainer() {
               width: '100%',
               height: '100%',
               objectFit: 'cover', // Cover the entire screen
+              transform: transitionPhase < 2 ? 'scale(0.8)' : 'scale(1)',
+              opacity: transitionPhase < 2 ? 0 : 1,
+              transition: 'transform 1.2s ease-out, opacity 1.2s ease-out',
             }}
             onEnded={handleVideoEnded}
-            autoPlay
+            autoPlay={false} // We'll manually play it
             playsInline
             muted
             controls={false}
@@ -175,14 +202,20 @@ export default function SceneContainer() {
 
       {/* Original scene - hidden when second scene is shown */}
       {!showSecondScene && (
-        <div style={{ 
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: 1
-        }}>
+        <div 
+          ref={firstSceneRef}
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1,
+            filter: 'blur(0px)',
+            transition: 'filter 0.5s ease-out',
+            opacity: 1
+          }}
+        >
           {/* Provide scroll data via context */}
           <ScrollContext.Provider value={scrollData}>
             {/* Original scene canvas - fades out during transition */}
