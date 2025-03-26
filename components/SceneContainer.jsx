@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import SimpleScrollySceneWrapper from './SimpleScrollySceneWrapper';
 import { ScrollContext } from './SimpleScrollyControls';
@@ -16,24 +16,48 @@ export default function SceneContainer() {
   // Add state for scene transition
   const [showSecondScene, setShowSecondScene] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [videoFinished, setVideoFinished] = useState(false);
+  const videoRef = useRef(null);
   
   // Function to handle transition trigger
   const handleTransitionTrigger = () => {
     console.log("%c 🚀 TRANSITION TRIGGERED! 🚀", "background: #4CAF50; color: white; font-size: 20px; padding: 10px;");
     
-    // First set the transitioning state to show the overlay
+    // Set transitioning state to show the video
     setIsTransitioning(true);
     
-    // After a short delay, switch scenes
+    // Start the video with a slight delay to ensure DOM is ready
     setTimeout(() => {
-      setShowSecondScene(true);
-      console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
-      
-      // After another short delay to ensure the new scene is ready, hide the overlay
-      setTimeout(() => {
-        setIsTransitioning(false);
-      }, 500);
-    }, 1000);
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0; // Reset video to start
+        const playPromise = videoRef.current.play();
+        
+        // Handle autoplay restrictions
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Video play was prevented:", error);
+            // Fall back to showing the second scene directly
+            handleVideoEnded();
+          });
+        }
+      }
+    }, 50);
+  };
+  
+  // Handle video ended event
+  const handleVideoEnded = () => {
+    console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
+    setVideoFinished(true);
+    
+    // Switch to second scene after video ends
+    setShowSecondScene(true);
+    console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
+    
+    // After a short delay, hide the video overlay
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setVideoFinished(false);
+    }, 300);
   };
   
   // Window scroll handler
@@ -88,26 +112,45 @@ export default function SceneContainer() {
   
   return (
     <>
+      {/* Video transition overlay */}
+      {isTransitioning && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 9999,
+            backgroundColor: 'black', // Background for the video
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: videoFinished ? 0 : 1,
+            transition: 'opacity 0.3s ease-out'
+          }}
+        >
+          <video
+            ref={videoRef}
+            src="/rockanimation.mp4"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover', // Cover the entire screen
+            }}
+            onEnded={handleVideoEnded}
+            autoPlay
+            playsInline
+            muted
+            controls={false}
+            preload="auto"
+          />
+        </div>
+      )}
+
       {/* Second scene - shown when transition is triggered */}
       {showSecondScene && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
-          {/* Transition overlay - fades out when the scene is fully loaded */}
-          {isTransitioning && (
-            <div 
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'black',
-                zIndex: 9999,
-                opacity: 1,
-                transition: 'opacity 0.5s ease-out'
-              }}
-            />
-          )}
-          
           <Canvas
             style={{ width: '100%', height: '100%' }}
             camera={{ position: [0, 0, 6], fov: 45 }}
@@ -140,31 +183,6 @@ export default function SceneContainer() {
           height: '100%',
           zIndex: 1
         }}>
-          {/* Transition overlay - shows when transitioning */}
-          {isTransitioning && (
-            <div 
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'black',
-                zIndex: 9999,
-                opacity: 0,
-                animation: 'fadeIn 1s forwards'
-              }}
-            />
-          )}
-          
-          {/* Add keyframes for fade animation */}
-          <style jsx global>{`
-            @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-          `}</style>
-          
           {/* Provide scroll data via context */}
           <ScrollContext.Provider value={scrollData}>
             {/* Original scene canvas - fades out during transition */}
