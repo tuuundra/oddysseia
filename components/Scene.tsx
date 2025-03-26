@@ -1070,7 +1070,7 @@ const FreeCameraControls = ({ isActive = false }) => {
   );
 };
 
-function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean }) {
+function Scene({ scrollytellingMode = false, onRockClick }: { scrollytellingMode?: boolean, onRockClick?: () => void }) {
   // Add a state to track whether free camera mode is active
   const [freeCameraActive, setFreeCameraActive] = useState(false);
   // Add day/night mode state - synced with camera mode
@@ -1080,6 +1080,14 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
   // Add a state to track whether the rock is hovered
   const [isRockHovered, setIsRockHovered] = useState(false);
   
+  // Handle rock click event
+  const handleRockClick = () => {
+    console.log("Rock clicked in Scene component");
+    if (onRockClick) {
+      onRockClick();
+    }
+  };
+
   // Add keyboard event listeners to toggle modes
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1218,7 +1226,11 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
             />
             
             <FracturedGLBRock 
-              onHoverChange={setIsRockHovered}
+              onHover={() => setIsRockHovered(true)}
+              onBlur={() => setIsRockHovered(false)}
+              onRockClick={handleRockClick}
+              position={[0, 0, 0]}
+              appearThreshold={0.45}
             />
           </group>
           
@@ -1389,7 +1401,11 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
               />
               
               <FracturedGLBRock 
-                onHoverChange={setIsRockHovered}
+                onHover={() => setIsRockHovered(true)}
+                onBlur={() => setIsRockHovered(false)}
+                onRockClick={handleRockClick}
+                position={[0, 0, 0]}
+                appearThreshold={0.45}
               />
             </group>
             
@@ -1526,7 +1542,11 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
               />
               
               <FracturedGLBRock 
-                onHoverChange={setIsRockHovered}
+                onHover={() => setIsRockHovered(true)}
+                onBlur={() => setIsRockHovered(false)}
+                onRockClick={handleRockClick}
+                position={[0, 0, 0]}
+                appearThreshold={0.45}
               />
             </group>
             

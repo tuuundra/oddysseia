@@ -10,10 +10,20 @@ const createMaterialWithGlow = (originalMaterial: THREE.Material, glowStrength: 
 };
 
 interface FracturedGLBRockProps {
-  onHoverChange?: (isHovered: boolean) => void;
+  position?: [number, number, number];
+  appearThreshold?: number;
+  onHover?: () => void;
+  onBlur?: () => void;
+  onRockClick?: () => void;
 }
 
-const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
+const FracturedGLBRock = ({
+  position = [0, 0, 0],
+  appearThreshold = 0.45,
+  onHover,
+  onBlur,
+  onRockClick
+}: FracturedGLBRockProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
   // Track rotation of the entire rock group
@@ -795,9 +805,40 @@ const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
     // Update text hover state only
     if (textHoverRef.current !== isTextHover) {
       textHoverRef.current = isTextHover;
-      if (onHoverChange) onHoverChange(isTextHover);
+      if (isTextHover) {
+        if (onHover) onHover();
+      } else {
+        if (onBlur) onBlur();
+      }
     }
   });
+  
+  // Add a click handler for the hover area
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      // Only process clicks if we have the callback
+      if (!onRockClick) return;
+      
+      // Check if click is on hover area
+      raycaster.current.setFromCamera(mouse.current, camera);
+      if (hoverAreaRef.current) {
+        const intersects = raycaster.current.intersectObject(hoverAreaRef.current);
+        if (intersects.length > 0) {
+          // Call the click handler
+          console.log("%c 🪨 ROCK CLICKED! 🪨 ", "background: #ff0000; color: white; font-size: 20px; padding: 10px;");
+          onRockClick();
+        }
+      }
+    };
+    
+    // Add click event listener
+    window.addEventListener('click', handleClick);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('click', handleClick);
+    };
+  }, [camera, onRockClick]);
   
   return (
     <group ref={groupRef} position={[0, 0.2, 0]}>
@@ -808,8 +849,13 @@ const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
         visible={true}
         renderOrder={1} // Render before other objects
       >
-        <sphereGeometry args={[0.35, 16, 8]} />
-        <meshBasicMaterial transparent opacity={0} />
+        <sphereGeometry args={[0.33, 16, 8]} /> {/* Increased size for better click detection */}
+        <meshBasicMaterial 
+          color="#ffffff" 
+          transparent={true} 
+          opacity={0} // Very slight opacity to ensure clicks register
+          wireframe={process.env.NODE_ENV === 'development'} // Show wireframe in dev mode
+        />
       </mesh>
 
       {/* The actual fractured rock model - position relative to pivot */}
