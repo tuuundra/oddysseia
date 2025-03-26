@@ -103,19 +103,34 @@ const PixelTransition = ({
   
   // Update shader uniforms
   useEffect(() => {
-    if (material.current) {
+    if (!material.current) {
+      console.log("PixelTransition: Material ref not ready yet");
+      return;
+    }
+    
+    try {
+      console.log(`PixelTransition: Updating uniforms - progress: ${progress}, has sourceFBO: ${!!sourceFBO}, has targetTexture: ${!!targetTexture}`);
+      
       material.current.uniforms.resolution.value.set(size.width, size.height);
       material.current.uniforms.progress.value = progress;
       material.current.uniforms.intensity.value = intensity;
       material.current.uniforms.pixelSize.value = pixelSize;
       
       if (sourceFBO && sourceFBO.texture) {
+        console.log("PixelTransition: Setting source texture");
         material.current.uniforms.tDiffuse1.value = sourceFBO.texture;
+      } else {
+        console.warn("PixelTransition: Source texture not available");
       }
       
       if (targetTexture) {
+        console.log("PixelTransition: Setting target texture");
         material.current.uniforms.tDiffuse2.value = targetTexture;
+      } else {
+        console.warn("PixelTransition: Target texture not available");
       }
+    } catch (error) {
+      console.error("PixelTransition: Error updating shader uniforms:", error);
     }
   }, [sourceFBO, targetTexture, progress, intensity, pixelSize, size]);
   
@@ -143,16 +158,34 @@ const PixelTransition = ({
 // Helper to capture the current scene as a texture
 export const useSceneCapture = () => {
   const { gl, scene, camera } = useThree();
-  const renderTarget = useFBO();
+  const renderTarget = useFBO({ stencilBuffer: false });
   
   const captureScene = () => {
-    const prevAutoUpdate = scene.autoUpdate;
-    scene.autoUpdate = false;
-    gl.setRenderTarget(renderTarget);
-    gl.render(scene, camera);
-    gl.setRenderTarget(null);
-    scene.autoUpdate = prevAutoUpdate;
-    return renderTarget;
+    try {
+      console.log("useSceneCapture: Starting scene capture");
+      
+      // Force a render update before capture
+      scene.updateMatrixWorld();
+      if (camera.updateMatrixWorld) camera.updateMatrixWorld();
+      
+      const prevAutoUpdate = scene.autoUpdate;
+      scene.autoUpdate = false;
+      
+      // Clear the render target first
+      gl.setRenderTarget(renderTarget);
+      gl.clear();
+      
+      // Render the scene to the target
+      gl.render(scene, camera);
+      gl.setRenderTarget(null);
+      scene.autoUpdate = prevAutoUpdate;
+      
+      console.log("useSceneCapture: Scene captured successfully");
+      return renderTarget;
+    } catch (error) {
+      console.error("useSceneCapture: Error capturing scene:", error);
+      throw error;
+    }
   };
   
   return { captureScene, renderTarget };

@@ -9,7 +9,7 @@ import ScrollPositionIndicator from './ScrollPositionIndicator';
 import GradientScene from './GradientScene';
 import MistTransition from './MistTransition';
 import RockLineScene from './RockLineScene';
-import TransitionEffectManager from './TransitionEffectManager';
+import TransitionEffectManager, { preloadVideoFrames } from './TransitionEffectManager';
 
 // Debug mode - set to true to enable manual transition trigger with 'T' key
 const DEBUG_TRANSITIONS = true;
@@ -25,12 +25,32 @@ export default function SceneContainer() {
   const [isReverseTransition, setIsReverseTransition] = useState(false); // Track if the transition is forwards or backwards
   const firstSceneRef = useRef(null);
   
+  // Debug transition phase changes
+  useEffect(() => {
+    console.log(`Transition phase changed to: ${transitionPhase}, isTransitioning: ${isTransitioning}, isReverse: ${isReverseTransition}`);
+  }, [transitionPhase, isTransitioning, isReverseTransition]);
+  
+  // Pre-load the video frames
+  useEffect(() => {
+    console.log("Starting to preload video frames");
+    preloadVideoFrames("/rockanimation.mp4")
+      .then(() => {
+        console.log("Video frames preloaded successfully");
+      })
+      .catch(error => {
+        console.error("Error preloading video frames:", error);
+      });
+  }, []);
+  
   // Function to handle transition trigger
   const handleTransitionTrigger = () => {
     console.log("%c 🚀 TRANSITION TRIGGERED! 🚀", "background: #4CAF50; color: white; font-size: 20px; padding: 10px;");
     
     // Prevent multiple transitions
-    if (isTransitioning) return;
+    if (isTransitioning) {
+      console.log("Transition already in progress, ignoring trigger");
+      return;
+    }
     
     // Start the transition sequence
     setIsTransitioning(true);
@@ -44,6 +64,7 @@ export default function SceneContainer() {
     
     // Phase 2: Start the pixel transition effect - will happen in TransitionEffectManager
     setTimeout(() => {
+      console.log("Setting transition phase to 2 (active transition)");
       setTransitionPhase(2);
     }, 100);
   };
