@@ -18,6 +18,7 @@ export default function SceneContainer() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
   const [transitionPhase, setTransitionPhase] = useState(0); // 0: not started, 1: blur/fade first scene, 2: video playing, 3: fade out
+  const [isReverseTransition, setIsReverseTransition] = useState(false); // Track if the transition is forwards or backwards
   const videoRef = useRef(null);
   const firstSceneRef = useRef(null);
   
@@ -28,6 +29,7 @@ export default function SceneContainer() {
     // Start the transition sequence
     setIsTransitioning(true);
     setTransitionPhase(1);
+    setIsReverseTransition(false); // This is a forward transition
     
     // Phase 1: Blur and fade the first scene
     if (firstSceneRef.current) {
@@ -50,7 +52,8 @@ export default function SceneContainer() {
       // Start video playback with a slight delay to ensure DOM is ready
       setTimeout(() => {
         if (videoRef.current) {
-          videoRef.current.currentTime = 0;
+          videoRef.current.currentTime = 0; // Start from beginning
+          videoRef.current.playbackRate = 1.0; // Normal speed (forward)
           const playPromise = videoRef.current.play();
           
           // Handle autoplay restrictions
@@ -66,11 +69,54 @@ export default function SceneContainer() {
     }, 800); // Delay to let the blur effect complete
   };
   
+  // New function to handle reverse transition (from rock line back to original scene)
+  const handleReverseTransition = () => {
+    console.log("%c 🔄 REVERSE TRANSITION TRIGGERED! 🔄", "background: #FF5722; color: white; font-size: 20px; padding: 10px;");
+    
+    // Flag that we're doing a reverse transition
+    setIsReverseTransition(true);
+    setIsTransitioning(true);
+    setTransitionPhase(2); // Start directly at video phase
+    
+    // Start video playback in reverse
+    setTimeout(() => {
+      if (videoRef.current) {
+        // Set video to the end and play in reverse
+        try {
+          videoRef.current.currentTime = videoRef.current.duration;
+          videoRef.current.playbackRate = -1.0; // Reverse speed
+          const playPromise = videoRef.current.play();
+          
+          // Handle autoplay restrictions
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error("Reverse video play was prevented:", error);
+              // Fall back to direct scene switch
+              handleReverseVideoEnded();
+            });
+          }
+        } catch (error) {
+          console.error("Error setting up reverse video:", error);
+          handleReverseVideoEnded();
+        }
+      } else {
+        console.error("Video reference not available");
+        handleReverseVideoEnded();
+      }
+    }, 100);
+  };
+  
   // Handle video ended event
   const handleVideoEnded = () => {
     console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
     setVideoFinished(true);
     setTransitionPhase(3);
+    
+    // Check if this is a reverse transition
+    if (isReverseTransition) {
+      handleReverseVideoEnded();
+      return;
+    }
     
     // Switch to second scene after video ends
     setShowSecondScene(true);
@@ -81,6 +127,28 @@ export default function SceneContainer() {
       setIsTransitioning(false);
       setVideoFinished(false);
       setTransitionPhase(0);
+    }, 500);
+  };
+  
+  // New function to handle when reverse video ends
+  const handleReverseVideoEnded = () => {
+    console.log("%c 🔙 REVERSE VIDEO ENDED - RETURNING TO ORIGINAL SCENE! 🔙", "background: #9C27B0; color: white; font-size: 20px; padding: 10px;");
+    
+    // Switch back to the original scene
+    setShowSecondScene(false);
+    
+    // After a short delay, hide the video overlay and reset transition state
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setVideoFinished(false);
+      setTransitionPhase(0);
+      setIsReverseTransition(false);
+      
+      // Restore original scene opacity
+      if (firstSceneRef.current) {
+        firstSceneRef.current.style.filter = 'blur(0px)';
+        firstSceneRef.current.style.opacity = '1';
+      }
     }, 500);
   };
   
@@ -195,7 +263,7 @@ export default function SceneContainer() {
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} intensity={0.8} />
             <directionalLight position={[-5, 3, -5]} intensity={0.4} />
-            <RockLineScene />
+            <RockLineScene onRockClick={handleReverseTransition} />
           </Canvas>
         </div>
       )}

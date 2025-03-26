@@ -4,21 +4,34 @@ import * as THREE from 'three';
 import { useGLTF, Html } from '@react-three/drei';
 
 // Simplified rock geometry as a fallback
-const SimplifiedRock = ({ position, scale, rotation }: any) => {
+const SimplifiedRock = ({ position, scale, rotation, onClick }: any) => {
   return (
-    <mesh position={position} scale={scale} rotation={rotation}>
+    <mesh 
+      position={position} 
+      scale={scale} 
+      rotation={rotation}
+      onClick={onClick}
+      onPointerOver={() => document.body.style.cursor = 'pointer'}
+      onPointerOut={() => document.body.style.cursor = 'default'}
+    >
       <octahedronGeometry args={[1, 0]} />
       <meshStandardMaterial color="#505050" roughness={0.8} />
     </mesh>
   );
 };
 
+// Interface for component props
+interface RockLineSceneProps {
+  onRockClick?: () => void;
+}
+
 // Component for displaying the rock line scene
-const RockLineScene = () => {
+const RockLineScene = ({ onRockClick }: RockLineSceneProps) => {
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
   const [isInitialized, setIsInitialized] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   
   // Load the rock model with error handling
   const { scene: originalScene } = useGLTF('/fractured_rock.glb', true, undefined, 
@@ -30,6 +43,14 @@ const RockLineScene = () => {
   
   // Create fragments for the line
   const fragments = useRef<THREE.Group[]>([]);
+  
+  // Handle rock click
+  const handleRockClick = (index: number) => {
+    console.log(`Rock ${index} clicked`);
+    if (onRockClick) {
+      onRockClick();
+    }
+  };
   
   // Initialize the scene - ensure this only runs once when all resources are ready
   useEffect(() => {
@@ -73,6 +94,35 @@ const RockLineScene = () => {
             // Add to scene and store reference
             groupRef.current.add(clone);
             fragments.current.push(clone);
+            
+            // Add click handler to each fragment
+            clone.userData.index = i;
+            clone.traverse((child) => {
+              if (child instanceof THREE.Mesh) {
+                // Add the child to interactive objects
+                child.userData.index = i;
+                
+                // Make the mesh clickable
+                // @ts-ignore - we're adding properties safely here
+                child.onClick = (event) => {
+                  event.stopPropagation();
+                  handleRockClick(i);
+                };
+                
+                // Add hover effects
+                // @ts-ignore
+                child.onPointerOver = () => {
+                  setHoveredIndex(i);
+                  document.body.style.cursor = 'pointer';
+                };
+                
+                // @ts-ignore
+                child.onPointerOut = () => {
+                  setHoveredIndex(null);
+                  document.body.style.cursor = 'default';
+                };
+              }
+            });
           } catch (err) {
             console.error(`Error creating fragment ${i}:`, err);
           }
@@ -85,7 +135,7 @@ const RockLineScene = () => {
         setLoadError(true);
       }
     }
-  }, [camera, originalScene, isInitialized, loadError]);
+  }, [camera, originalScene, isInitialized, loadError, onRockClick]);
   
   // Animate the fragments with subtle floating
   useFrame(({ clock }) => {
@@ -107,6 +157,13 @@ const RockLineScene = () => {
             fragment.rotation.x += 0.001 * Math.sin(t * rotateSpeed);
             fragment.rotation.y += 0.001 * Math.sin(t * rotateSpeed * 0.7);
             fragment.rotation.z += 0.001 * Math.sin(t * rotateSpeed * 0.5);
+            
+            // Add slight scale effect when hovered
+            if (hoveredIndex === index) {
+              fragment.scale.multiplyScalar(1.005);
+            } else if (fragment.scale.x > 0.6) {
+              fragment.scale.multiplyScalar(0.995);
+            }
           } catch (err) {
             // Silently ignore animation errors
           }
@@ -140,9 +197,26 @@ const RockLineScene = () => {
               position={[x, 0, 0]} 
               scale={scale} 
               rotation={rotation}
+              onClick={() => handleRockClick(i)}
             />
           );
         })}
+        
+        {/* Click instruction text */}
+        <Html center position={[0, 1.5, 0]}>
+          <div style={{ 
+            color: 'white', 
+            fontSize: '16px',
+            fontFamily: 'var(--font-courier-prime), monospace',
+            textAlign: 'center',
+            padding: '10px',
+            background: 'rgba(0,0,0,0.5)',
+            borderRadius: '5px',
+            pointerEvents: 'none'
+          }}>
+            Click a rock to return
+          </div>
+        </Html>
         
         {/* Lighting */}
         <ambientLight intensity={0.5} />
@@ -167,6 +241,22 @@ const RockLineScene = () => {
       <group ref={groupRef} position={[0, 0, 0]}>
         {/* Fragments will be added dynamically */}
       </group>
+      
+      {/* Click instruction text */}
+      <Html center position={[0, 1.5, 0]}>
+        <div style={{ 
+          color: 'white', 
+          fontSize: '16px',
+          fontFamily: 'var(--font-courier-prime), monospace',
+          textAlign: 'center',
+          padding: '10px',
+          background: 'rgba(0,0,0,0.5)',
+          borderRadius: '5px',
+          pointerEvents: 'none'
+        }}>
+          Click a rock to return
+        </div>
+      </Html>
       
       {/* Lighting */}
       <ambientLight intensity={0.5} />
