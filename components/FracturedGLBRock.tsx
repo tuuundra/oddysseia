@@ -800,15 +800,15 @@ const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
   });
   
   return (
-    <group ref={groupRef} position={[0, 0, 0]}>
+    <group ref={groupRef} position={[0, 0.2, 0]}>
       {/* Invisible hover area for text */}
       <mesh
         ref={hoverAreaRef}
-        position={[0, 0, 0]}
+        position={[rockOffsetX, rockOffsetY, rockOffsetZ]} // Use exact same offsets as the rock
         visible={true}
-        renderOrder={-1} // Render before other objects
+        renderOrder={1} // Render before other objects
       >
-        <sphereGeometry args={[0.3, 12, 22]} /> // Adjust radius to match rock size
+        <sphereGeometry args={[0.35, 16, 8]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
@@ -816,7 +816,7 @@ const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
       <group position={[rockOffsetX, rockOffsetY, rockOffsetZ]}>
         <primitive 
           object={scene.current} 
-          position={[0, 0, 0]}  // Keep rock at origin relative to its parent group
+          position={[0.1, -0.1, -0.1]}  // Keep rock at origin relative to its parent group
         />
       </group>
     </group>
