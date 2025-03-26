@@ -9,6 +9,10 @@ import ScrollPositionIndicator from './ScrollPositionIndicator';
 import GradientScene from './GradientScene';
 import MistTransition from './MistTransition';
 import RockLineScene from './RockLineScene';
+import TransitionEffectManager from './TransitionEffectManager';
+
+// Debug mode - set to true to enable manual transition trigger with 'T' key
+const DEBUG_TRANSITIONS = true;
 
 // Container that provides scroll context to the 3D scene
 export default function SceneContainer() {
@@ -17,139 +21,68 @@ export default function SceneContainer() {
   const [showSecondScene, setShowSecondScene] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [videoFinished, setVideoFinished] = useState(false);
-  const [transitionPhase, setTransitionPhase] = useState(0); // 0: not started, 1: blur/fade first scene, 2: video playing, 3: fade out
+  const [transitionPhase, setTransitionPhase] = useState(0); // 0: not started, 1: effect preparation, 2: transition active, 3: completed
   const [isReverseTransition, setIsReverseTransition] = useState(false); // Track if the transition is forwards or backwards
-  const videoRef = useRef(null);
   const firstSceneRef = useRef(null);
   
   // Function to handle transition trigger
   const handleTransitionTrigger = () => {
     console.log("%c 🚀 TRANSITION TRIGGERED! 🚀", "background: #4CAF50; color: white; font-size: 20px; padding: 10px;");
     
+    // Prevent multiple transitions
+    if (isTransitioning) return;
+    
     // Start the transition sequence
     setIsTransitioning(true);
     setTransitionPhase(1);
     setIsReverseTransition(false); // This is a forward transition
     
-    // Phase 1: Blur and fade the first scene
+    // Phase 1: Prepare for the transition
     if (firstSceneRef.current) {
-      firstSceneRef.current.style.filter = 'blur(0px)';
-      firstSceneRef.current.style.transition = 'filter 1.2s ease-in-out, opacity 1.2s ease-in-out';
-      
-      // Start the blur effect
-      setTimeout(() => {
-        if (firstSceneRef.current) {
-          firstSceneRef.current.style.filter = 'blur(10px)';
-          firstSceneRef.current.style.opacity = '0.6';
-        }
-      }, 50);
+      firstSceneRef.current.style.transition = 'filter 0.5s ease-in-out, opacity 0.5s ease-in-out';
     }
     
-    // Phase 2: Fade in the video after a delay
+    // Phase 2: Start the pixel transition effect - will happen in TransitionEffectManager
     setTimeout(() => {
       setTransitionPhase(2);
-      
-      // Start video playback with a slight delay to ensure DOM is ready
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.currentTime = 0; // Start from beginning
-          videoRef.current.playbackRate = 1.0; // Normal speed (forward)
-          const playPromise = videoRef.current.play();
-          
-          // Handle autoplay restrictions
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.error("Video play was prevented:", error);
-              // Fall back to showing the second scene directly
-              handleVideoEnded();
-            });
-          }
-        }
-      }, 100);
-    }, 800); // Delay to let the blur effect complete
-  };
-  
-  // New function to handle reverse transition (from rock line back to original scene)
-  const handleReverseTransition = () => {
-    console.log("%c 🔄 REVERSE TRANSITION TRIGGERED! 🔄", "background: #FF5722; color: white; font-size: 20px; padding: 10px;");
-    
-    // Flag that we're doing a reverse transition
-    setIsReverseTransition(true);
-    setIsTransitioning(true);
-    setTransitionPhase(2); // Start directly at video phase
-    
-    // Start video playback in reverse
-    setTimeout(() => {
-      if (videoRef.current) {
-        // Set video to the end and play in reverse
-        try {
-          videoRef.current.currentTime = videoRef.current.duration;
-          videoRef.current.playbackRate = -1.0; // Reverse speed
-          const playPromise = videoRef.current.play();
-          
-          // Handle autoplay restrictions
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.error("Reverse video play was prevented:", error);
-              // Fall back to direct scene switch
-              handleReverseVideoEnded();
-            });
-          }
-        } catch (error) {
-          console.error("Error setting up reverse video:", error);
-          handleReverseVideoEnded();
-        }
-      } else {
-        console.error("Video reference not available");
-        handleReverseVideoEnded();
-      }
     }, 100);
   };
   
-  // Handle video ended event
-  const handleVideoEnded = () => {
-    console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
-    setVideoFinished(true);
-    setTransitionPhase(3);
+  // Handle transition completion
+  const handleTransitionComplete = () => {
+    console.log("%c ✨ TRANSITION COMPLETED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
     
-    // Check if this is a reverse transition
+    // If this is a reverse transition, go back to the first scene
     if (isReverseTransition) {
-      handleReverseVideoEnded();
-      return;
-    }
-    
-    // Switch to second scene after video ends
-    setShowSecondScene(true);
-    console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
-    
-    // After a short delay, hide the video overlay
-    setTimeout(() => {
-      setIsTransitioning(false);
-      setVideoFinished(false);
-      setTransitionPhase(0);
-    }, 500);
-  };
-  
-  // New function to handle when reverse video ends
-  const handleReverseVideoEnded = () => {
-    console.log("%c 🔙 REVERSE VIDEO ENDED - RETURNING TO ORIGINAL SCENE! 🔙", "background: #9C27B0; color: white; font-size: 20px; padding: 10px;");
-    
-    // Switch back to the original scene
-    setShowSecondScene(false);
-    
-    // After a short delay, hide the video overlay and reset transition state
-    setTimeout(() => {
-      setIsTransitioning(false);
-      setVideoFinished(false);
-      setTransitionPhase(0);
-      setIsReverseTransition(false);
+      setShowSecondScene(false);
       
       // Restore original scene opacity
       if (firstSceneRef.current) {
         firstSceneRef.current.style.filter = 'blur(0px)';
         firstSceneRef.current.style.opacity = '1';
       }
-    }, 500);
+    } else {
+      // Forward transition - show the second scene
+      setShowSecondScene(true);
+    }
+    
+    // Reset transition state
+    setTransitionPhase(0);
+    setIsTransitioning(false);
+    setVideoFinished(false);
+  };
+  
+  // New function to handle reverse transition (from rock line back to original scene)
+  const handleReverseTransition = () => {
+    console.log("%c 🔄 REVERSE TRANSITION TRIGGERED! 🔄", "background: #FF5722; color: white; font-size: 20px; padding: 10px;");
+    
+    // Prevent multiple transitions
+    if (isTransitioning) return;
+    
+    // Flag that we're doing a reverse transition
+    setIsReverseTransition(true);
+    setIsTransitioning(true);
+    setTransitionPhase(2); // Start directly at transition phase
   };
   
   // Window scroll handler
@@ -202,46 +135,39 @@ export default function SceneContainer() {
                               scrollData.offset > transitionEndPoint ? 1 : 
                               transitionProgress;
   
+  // Debug keyboard controls for transition testing
+  useEffect(() => {
+    if (!DEBUG_TRANSITIONS) return;
+    
+    const handleKeyDown = (e) => {
+      if (e.key === 't' || e.key === 'T') {
+        console.log("DEBUG: Manual transition trigger");
+        if (showSecondScene) {
+          handleReverseTransition();
+        } else {
+          handleTransitionTrigger();
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showSecondScene]);
+  
   return (
     <>
-      {/* Video transition overlay */}
-      {isTransitioning && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            zIndex: 9999,
-            backgroundColor: 'black', // Background for the video
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            opacity: transitionPhase === 1 ? 0 : (videoFinished ? 0 : 1),
-            transition: 'opacity 1s ease-out'
-          }}
-        >
-          <video
-            ref={videoRef}
-            src="/rockanimation.mp4"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover', // Cover the entire screen
-              transform: transitionPhase < 2 ? 'scale(0.8)' : 'scale(1)',
-              opacity: transitionPhase < 2 ? 0 : 1,
-              transition: 'transform 1.2s ease-out, opacity 1.2s ease-out',
-            }}
-            onEnded={handleVideoEnded}
-            autoPlay={false} // We'll manually play it
-            playsInline
-            muted
-            controls={false}
-            preload="auto"
-          />
-        </div>
-      )}
+      {/* Custom Pixel Transition Effect */}
+      <TransitionEffectManager 
+        isActive={transitionPhase === 2}
+        videoSrc="/rockanimation.mp4"
+        onTransitionComplete={handleTransitionComplete}
+        intensity={0.7}
+        pixelSize={15}
+        duration={1800}
+        isReverse={isReverseTransition}
+      />
 
       {/* Second scene - shown when transition is triggered */}
       {showSecondScene && (
