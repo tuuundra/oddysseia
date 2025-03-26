@@ -9,7 +9,11 @@ const createMaterialWithGlow = (originalMaterial: THREE.Material, glowStrength: 
   return originalMaterial.clone();
 };
 
-const FracturedGLBRock = () => {
+interface FracturedGLBRockProps {
+  onHoverChange?: (isHovered: boolean) => void;
+}
+
+const FracturedGLBRock = ({ onHoverChange }: FracturedGLBRockProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
   // Track rotation of the entire rock group
@@ -78,6 +82,10 @@ const FracturedGLBRock = () => {
   const rockOffsetX = 0.2; // Adjust to move rock left/right relative to pivot
   const rockOffsetY = 0; // Adjust to move rock up/down relative to pivot
   const rockOffsetZ = 0.05; // Adjust to move rock forward/back relative to pivot
+  
+  // Add these at the top with other refs
+  const hoverAreaRef = useRef<THREE.Mesh>(null);
+  const textHoverRef = useRef(false);
   
   // Mouse event handlers
   useEffect(() => {
@@ -395,7 +403,7 @@ const FracturedGLBRock = () => {
   
   // Animate the rock fragments with subtle floating motion and handle mouse interaction
   useFrame(({ clock }) => {
-    if (!groupRef.current) return;
+    if (!groupRef.current || !hoverAreaRef.current) return;
     
     const t = clock.getElapsedTime();
     
@@ -779,10 +787,31 @@ const FracturedGLBRock = () => {
         child.rotation.z = origRot.z + Math.sin(t * rotSpeed * 0.5) * 0.001;
       }
     });
+
+    // Check intersections with invisible hover area
+    const hoverAreaIntersects = raycaster.current.intersectObject(hoverAreaRef.current);
+    const isTextHover = hoverAreaIntersects.length > 0;
+
+    // Update text hover state only
+    if (textHoverRef.current !== isTextHover) {
+      textHoverRef.current = isTextHover;
+      if (onHoverChange) onHoverChange(isTextHover);
+    }
   });
   
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
+      {/* Invisible hover area for text */}
+      <mesh
+        ref={hoverAreaRef}
+        position={[0.1, 0, 0.1]}
+        visible={true}
+        renderOrder={-1} // Render before other objects
+      >
+        <sphereGeometry args={[0.4, 32, 32]} /> // Adjust radius to match rock size
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+
       {/* The actual fractured rock model - position relative to pivot */}
       <group position={[rockOffsetX, rockOffsetY, rockOffsetZ]}>
         <primitive 

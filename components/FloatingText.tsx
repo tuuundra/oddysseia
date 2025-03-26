@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -7,10 +8,19 @@ type Vector3Array = [number, number, number];
 interface FloatingTextProps {
   position: Vector3Array;
   rockPosition: Vector3Array;
+  isHovered: boolean;
 }
 
-export default function FloatingText({ position, rockPosition }: FloatingTextProps) {
+export default function FloatingText({ position, rockPosition, isHovered }: FloatingTextProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const textMaterialRef = useRef<THREE.MeshBasicMaterial>(new THREE.MeshBasicMaterial({
+    color: '#ffffff',
+    depthTest: false,
+    transparent: true,
+    opacity: 0 // Start invisible
+  }));
+  const lineMaterialRef = useRef<THREE.LineBasicMaterial>(null!);
+  const targetOpacity = useRef(0);
   
   // Calculate positions for the line segments
   const textPosition = new THREE.Vector3(0, 0, 0); // Relative to group
@@ -49,11 +59,26 @@ export default function FloatingText({ position, rockPosition }: FloatingTextPro
   const yRotation = -0.6; // Rotate left/right
   const zRotation = -0.12; // Tilt side to side
 
-  // Create a custom material for the text
-  const textMaterial = new THREE.MeshBasicMaterial({
-    color: '#ffffff',
-    depthTest: false,
-    transparent: true
+  // Animate opacity changes
+  useFrame(() => {
+    // Flip the logic to show on hover
+    targetOpacity.current = isHovered ? 1 : 0;
+    
+    // Increase lerp speed from 0.1 to 0.3 for faster transitions
+    if (textMaterialRef.current) {
+      textMaterialRef.current.opacity = THREE.MathUtils.lerp(
+        textMaterialRef.current.opacity,
+        targetOpacity.current,
+        0.3 // Increased from 0.1
+      );
+    }
+    if (lineMaterialRef.current) {
+      lineMaterialRef.current.opacity = THREE.MathUtils.lerp(
+        lineMaterialRef.current.opacity,
+        targetOpacity.current,
+        0.3 // Increased from 0.1
+      );
+    }
   });
 
   return (
@@ -67,23 +92,26 @@ export default function FloatingText({ position, rockPosition }: FloatingTextPro
       <line>
         <bufferGeometry attach="geometry" {...lineGeometry} />
         <lineBasicMaterial 
-          color="#ffffff" // White color
-          linewidth={2} // Thinner line
-          depthTest={false} // Disable depth testing
+          ref={lineMaterialRef}
+          color="#ffffff"
+          linewidth={2}
+          depthTest={false}
+          transparent={true}
+          opacity={0} // Initial invisible state
         />
       </line>
       
       {/* Text */}
       <Text
-        position={[0, 0.05, 0]} // Relative to group
+        position={[0, 0.05, 0]}
         fontSize={0.4}
         color="#ffffff"
         anchorX="center"
         anchorY="middle"
         outlineWidth={0.02}
         outlineColor="#000000"
-        rotation={[0, Math.PI, 0]} // Keep text facing camera
-        material={textMaterial} // Use custom material
+        rotation={[0, Math.PI, 0]}
+        material={textMaterialRef.current}
       >
         click to explore
       </Text>

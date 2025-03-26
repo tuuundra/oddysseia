@@ -1077,6 +1077,8 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
   const [isDayMode, setIsDayMode] = useState(false);
   // Add scrollytelling mode state - start with scrollytelling active by default
   const [scrollytellingActive, setScrollytellingActive] = useState(true);
+  // Add a state to track whether the rock is hovered
+  const [isRockHovered, setIsRockHovered] = useState(false);
   
   // Add keyboard event listeners to toggle modes
   useEffect(() => {
@@ -1215,7 +1217,9 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
               decay={0.2}
             />
             
-            <FracturedGLBRock />
+            <FracturedGLBRock 
+              onHoverChange={setIsRockHovered}
+            />
           </group>
           
           {/* Stumpington tree stump - placed near the floating rock */}
@@ -1282,8 +1286,9 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
         {/* Add the floating text near the rock */}
         <group renderOrder={1}>
           <FloatingText 
-            position={[25, 1, -20]} // Position above and to the right of the rock
+            position={[25, 3, -20]} // Position above and to the right of the rock
             rockPosition={[23, 0, -22]} // Rock's position
+            isHovered={isRockHovered}
           />
         </group>
       </>
@@ -1383,7 +1388,9 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
                 decay={0.2}
               />
               
-              <FracturedGLBRock />
+              <FracturedGLBRock 
+                onHoverChange={setIsRockHovered}
+              />
             </group>
             
             {/* Stumpington tree stump - placed near the floating rock */}
@@ -1518,7 +1525,9 @@ function Scene({ scrollytellingMode = false }: { scrollytellingMode?: boolean })
                 decay={0.2}
               />
               
-              <FracturedGLBRock />
+              <FracturedGLBRock 
+                onHoverChange={setIsRockHovered}
+              />
             </group>
             
             {/* Stumpington tree stump - placed near the floating rock */}
