@@ -9,9 +9,10 @@ interface FloatingTextProps {
   position: Vector3Array;
   rockPosition: Vector3Array;
   isHovered: boolean;
+  scale?: number; // Add scale property with optional flag
 }
 
-export default function FloatingText({ position, rockPosition, isHovered }: FloatingTextProps) {
+export default function FloatingText({ position, rockPosition, isHovered, scale = 1.0 }: FloatingTextProps) {
   const groupRef = useRef<THREE.Group>(null);
   const textMaterialRef = useRef<THREE.MeshBasicMaterial>(new THREE.MeshBasicMaterial({
     color: '#ffffff',
@@ -87,6 +88,7 @@ export default function FloatingText({ position, rockPosition, isHovered }: Floa
       position={[position[0], position[1], position[2] + 1]} // Move forward in Z-axis
       rotation={[xRotation, yRotation, zRotation]} // Apply 3D rotation
       renderOrder={1} // Ensure this group renders last
+      scale={scale} // Apply unified scale
     >
       {/* Underline with sharp bend */}
       <line>

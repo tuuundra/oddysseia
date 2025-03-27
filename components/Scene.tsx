@@ -1301,6 +1301,7 @@ function Scene({ scrollytellingMode = false, onRockClick }: { scrollytellingMode
             position={[25, 3, -20]} // Position above and to the right of the rock
             rockPosition={[23, 0, -22]} // Rock's position
             isHovered={isRockHovered}
+            scale={0.8} // Control the size of text and line together
           />
         </group>
       </>

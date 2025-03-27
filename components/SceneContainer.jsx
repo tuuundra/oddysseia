@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import SimpleScrollySceneWrapper from './SimpleScrollySceneWrapper';
 import { ScrollContext } from './SimpleScrollyControls';
 import SceneContent from './SceneContent';
@@ -87,6 +87,34 @@ export default function SceneContainer() {
     }, 200);
   };
   
+  // Handle video ended event
+  const handleVideoEnded = () => {
+    console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
+    setVideoFinished(true);
+    
+    // Check if this is a reverse transition
+    if (isReverseTransition) {
+      handleReverseVideoEnded();
+      return;
+    }
+    
+    // Set phase to transitioning to the rock scene
+    setTransitionPhase(3);
+    
+    // After a short delay, show the second scene
+    setTimeout(() => {
+      setShowSecondScene(true);
+      console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
+      
+      // After another short delay, hide the video overlay
+      setTimeout(() => {
+        setIsTransitioning(false);
+        setVideoFinished(false);
+        setTransitionPhase(0);
+      }, 800);
+    }, 500);
+  };
+  
   // New function to handle reverse transition (from rock line back to original scene)
   const handleReverseTransition = () => {
     console.log("%c 🔄 REVERSE TRANSITION TRIGGERED! 🔄", "background: #FF5722; color: white; font-size: 20px; padding: 10px;");
@@ -149,29 +177,6 @@ export default function SceneContainer() {
         handleReverseVideoEnded();
       }
     }, 100);
-  };
-  
-  // Handle video ended event
-  const handleVideoEnded = () => {
-    console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
-    setVideoFinished(true);
-    
-    // Check if this is a reverse transition
-    if (isReverseTransition) {
-      handleReverseVideoEnded();
-      return;
-    }
-    
-    // Switch to second scene after video ends
-    setShowSecondScene(true);
-    console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
-    
-    // After a short delay, hide the video overlay
-    setTimeout(() => {
-      setIsTransitioning(false);
-      setVideoFinished(false);
-      setTransitionPhase(0);
-    }, 300);
   };
   
   // New function to handle when reverse video ends
@@ -266,7 +271,9 @@ export default function SceneContainer() {
               width: '100%',
               height: '100%',
               objectFit: 'cover', // Cover the entire screen
-              opacity: transitionPhase === 1 ? 0 : (videoFinished ? 0 : 1),
+              opacity: transitionPhase === 1 ? 0 : 
+                     (transitionPhase === 3 ? 0.3 : // Mostly transparent during final transition
+                     (videoFinished ? 0 : 1)),
               transition: 'opacity 1s ease-in-out',
             }}
             onEnded={handleVideoEnded}
@@ -297,7 +304,16 @@ export default function SceneContainer() {
 
       {/* Second scene - shown when transition is triggered */}
       {showSecondScene && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100%', 
+            height: '100%',
+            opacity: 1,
+            transition: 'opacity 1s ease-in-out',
+          }}>
           <Canvas
             style={{ width: '100%', height: '100%' }}
             camera={{ position: [0, 0, 6], fov: 45 }}
@@ -315,7 +331,10 @@ export default function SceneContainer() {
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} intensity={0.8} />
             <directionalLight position={[-5, 3, -5]} intensity={0.4} />
-            <RockLineScene onRockClick={handleReverseTransition} />
+            <RockLineScene 
+              onRockClick={handleReverseTransition}
+              showConnectingLines={isTransitioning && transitionPhase === 3}
+            />
           </Canvas>
         </div>
       )}
