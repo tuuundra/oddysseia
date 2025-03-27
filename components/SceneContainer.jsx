@@ -31,12 +31,6 @@ export default function SceneContainer() {
     setTransitionPhase(1);
     setIsReverseTransition(false); // This is a forward transition
     
-    // Prepare video for playback
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0; // Start from beginning
-      videoRef.current.playbackRate = 1.0; // Normal speed (forward)
-    }
-    
     // Start fading out the first scene and fading in the video after a small delay
     setTimeout(() => {
       setTransitionPhase(2); // Move to phase 2 where video is visible
@@ -45,15 +39,49 @@ export default function SceneContainer() {
     // Start video playback with a slight delay to ensure DOM is ready
     setTimeout(() => {
       if (videoRef.current) {
-        const playPromise = videoRef.current.play();
+        videoRef.current.currentTime = 0; // Start from beginning
         
-        // Handle autoplay restrictions
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Video play was prevented:", error);
-            // Fall back to showing the second scene directly
-            handleVideoEnded();
-          });
+        // Apply fast playback
+        try {
+          videoRef.current.defaultPlaybackRate = 2.0; // Set default rate
+          videoRef.current.playbackRate = 2.0; // Set current rate
+          console.log("Set forward playback rate to:", videoRef.current.playbackRate);
+          
+          // Register listener to ensure playback rate is maintained
+          const ensurePlaybackRate = () => {
+            if (videoRef.current && videoRef.current.playbackRate !== 2.0) {
+              videoRef.current.playbackRate = 2.0;
+              console.log("Corrected playback rate to:", videoRef.current.playbackRate);
+            }
+          };
+          
+          // Apply rate again when video is ready to play
+          videoRef.current.addEventListener('canplay', ensurePlaybackRate, { once: true });
+          
+          // Check and fix rate periodically during playback
+          const timeUpdateHandler = () => {
+            ensurePlaybackRate();
+          };
+          videoRef.current.addEventListener('timeupdate', timeUpdateHandler);
+          
+          // Clean up listener when video ends
+          videoRef.current.addEventListener('ended', () => {
+            videoRef.current.removeEventListener('timeupdate', timeUpdateHandler);
+          }, { once: true });
+        
+          const playPromise = videoRef.current.play();
+          
+          // Handle autoplay restrictions
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error("Video play was prevented:", error);
+              // Fall back to showing the second scene directly
+              handleVideoEnded();
+            });
+          }
+        } catch (error) {
+          console.error("Error setting video playback rate:", error);
+          handleVideoEnded();
         }
       }
     }, 200);
@@ -74,7 +102,34 @@ export default function SceneContainer() {
         // Set video to the end and play in reverse
         try {
           videoRef.current.currentTime = videoRef.current.duration;
-          videoRef.current.playbackRate = -1.0; // Reverse speed
+          
+          // Apply fast reverse playback
+          videoRef.current.defaultPlaybackRate = -2.0; // Set default rate
+          videoRef.current.playbackRate = -2.0; // Set current rate
+          console.log("Set reverse playback rate to:", videoRef.current.playbackRate);
+          
+          // Register listener to ensure playback rate is maintained
+          const ensurePlaybackRate = () => {
+            if (videoRef.current && videoRef.current.playbackRate !== -2.0) {
+              videoRef.current.playbackRate = -2.0;
+              console.log("Corrected reverse playback rate to:", videoRef.current.playbackRate);
+            }
+          };
+          
+          // Apply rate again when video is ready to play
+          videoRef.current.addEventListener('canplay', ensurePlaybackRate, { once: true });
+          
+          // Check and fix rate periodically during playback
+          const timeUpdateHandler = () => {
+            ensurePlaybackRate();
+          };
+          videoRef.current.addEventListener('timeupdate', timeUpdateHandler);
+          
+          // Clean up listener when video ends
+          videoRef.current.addEventListener('ended', () => {
+            videoRef.current.removeEventListener('timeupdate', timeUpdateHandler);
+          }, { once: true });
+          
           const playPromise = videoRef.current.play();
           
           // Handle autoplay restrictions
@@ -215,6 +270,22 @@ export default function SceneContainer() {
               transition: 'opacity 1s ease-in-out',
             }}
             onEnded={handleVideoEnded}
+            onLoadedMetadata={(e) => {
+              // Attempt to set playback rate once metadata is loaded
+              try {
+                const targetRate = isReverseTransition ? -2.0 : 2.0;
+                e.target.playbackRate = targetRate;
+                console.log(`Setting playback rate on metadata load to: ${targetRate}`, e.target.playbackRate);
+              } catch (err) {
+                console.warn("Browser may have limitations on playback speed:", err);
+              }
+            }}
+            onTimeUpdate={(e) => {
+              // Console log current time and rate periodically for debugging
+              if (e.target.currentTime % 1 < 0.1) { // Log roughly every second
+                console.log(`Video time: ${e.target.currentTime.toFixed(2)}, rate: ${e.target.playbackRate}`);
+              }
+            }}
             autoPlay={false} // We'll manually play it
             playsInline
             muted
