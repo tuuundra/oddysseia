@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
-import { OrbitControls, useTexture, PerspectiveCamera, Environment, Float, Text, useGLTF } from '@react-three/drei';
+import { OrbitControls, useTexture, PerspectiveCamera, Environment, Float, Text, useGLTF, useScroll } from '@react-three/drei';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
@@ -11,7 +11,18 @@ import FracturedSimpleRock from './FracturedSimpleRock';
 import FracturedGLBRock from './FracturedGLBRock';
 import PineTree from './PineTree';
 import { FBXLoader } from 'three-stdlib';
+import Stumpington from './Stumpington';
+import { ScrollytellingScene } from './ScrollytellingScene';
+import { EffectComposer, ChromaticAberration, Noise, Glitch } from '@react-three/postprocessing';
+import FloatingText from './FloatingText';
 
+// Add TypeScript declarations for the global variables we use
+declare global {
+  interface Window {
+    __R3F_CANVAS_ID?: string;
+    __R3F_CLEANUP_FN?: () => void;
+  }
+}
 
 // Custom shader for the fluid effect
 const fluidShader = {
@@ -712,44 +723,60 @@ const Igloo = () => {
   );
 };
 
-// Camera with more dramatic floating motion
+// Camera with mouse-controlled movement that always looks at the floating rock
 const FloatingCamera = () => {
   const { camera } = useThree();
   
   // Store the initial camera position for reference
   const initialPosition = useRef(new THREE.Vector3());
+  // Store mouse position
+  const mousePosition = useRef({ x: 0, y: 0 });
+  // Rock position to look at (based on actual position from the scene)
+  const rockPosition = useRef(new THREE.Vector3(23, 0, -22));
   
+  // Set up mouse move listener
   useEffect(() => {
+    // Handler for mouse movement
+    const handleMouseMove = (event: MouseEvent) => {
+      // Convert mouse position to normalized coordinates (-1 to 1)
+      mousePosition.current = {
+        x: (event.clientX / window.innerWidth) * 2 - 1,
+        y: -(event.clientY / window.innerHeight) * 2 + 1
+      };
+    };
+    
+    // Add event listener
+    window.addEventListener('mousemove', handleMouseMove);
+    
     // Set initial camera position
     camera.position.set(32.19, -1.37, -31.22);
     initialPosition.current.copy(camera.position);
+    
+    // Clean up event listener on unmount
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, [camera]);
   
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime();
     
-    // Much faster and more dramatic camera movement
-    const xMovement = Math.sin(time * 0.8) * 0.15;   // Fast side-to-side
-    const yMovement = Math.sin(time * 0.7) * 0.12;   // Fast up-down
-    const zMovement = Math.cos(time * 0.5) * 0.13;   // Fast forward-back
+    // Base floating animation (reduced amplitude compared to original)
+    const xMovement = Math.sin(time * 0.3) * 0.07;
+    const yMovement = Math.sin(time * 0.4) * 0.05;
+    const zMovement = Math.cos(time * 0.2) * 0.06;
+    
+    // Mouse influence (small offset based on mouse position)
+    const mouseXInfluence = mousePosition.current.x * 1.5; // Horizontal camera movement
+    const mouseYInfluence = mousePosition.current.y * 1.0; // Vertical camera movement
     
     // Apply the movement relative to the initial position
-    camera.position.x = initialPosition.current.x + xMovement;
-    camera.position.y = initialPosition.current.y + yMovement;
+    camera.position.x = initialPosition.current.x + xMovement + mouseXInfluence;
+    camera.position.y = initialPosition.current.y + yMovement + mouseYInfluence;
     camera.position.z = initialPosition.current.z + zMovement;
     
-    // More dramatic rotation movement
-    const lookXOffset = Math.sin(time * 0.5) * 0.5;   // Wider angle shifts
-    const lookYOffset = Math.cos(time * 0.6) * 0.4;   // Wider angle shifts
-    
-    // Create a look target with more dramatic motion
-    const lookTarget = new THREE.Vector3(
-      lookXOffset,
-      lookYOffset,
-      0
-    );
-    
-    camera.lookAt(lookTarget);
+    // Always look at the rock position
+    camera.lookAt(rockPosition.current);
   });
   
   return null;
@@ -764,6 +791,25 @@ const Fog = () => {
       scene.style.background = 'linear-gradient(to bottom, #111830 0%, #2a3045 100%)';
     }
   }, []);
+  
+  return null;
+};
+
+// Custom environment settings component that handles day/night transitions
+const EnvironmentSettings = ({ isDayMode }: { isDayMode: boolean }) => {
+  useEffect(() => {
+    // Create day/night environment effect
+    const scene = document.querySelector('canvas')?.parentElement;
+    if (scene) {
+      if (isDayMode) {
+        // Daytime sky - bright blue gradient
+        scene.style.background = 'linear-gradient(to bottom, #87CEEB 0%, #E0F7FF 100%)';
+      } else {
+        // Nighttime sky - dark blue gradient
+        scene.style.background = 'linear-gradient(to bottom, #111830 0%, #2a3045 100%)';
+      }
+    }
+  }, [isDayMode]);
   
   return null;
 };
@@ -1001,160 +1047,573 @@ const generateRockFragments = () => {
 // Generate all rock fragments
 const rockFragments = generateRockFragments();
 
-function Scene() {
+// Free Camera with controls for navigation
+const FreeCameraControls = ({ isActive = false }) => {
+  // Only render OrbitControls when explicitly active
+  if (!isActive) return null;
+  
+  const { camera } = useThree();
+  
   return (
-    <div style={{ 
-      position: 'absolute', 
-      top: 0, 
-      left: 0, 
-      width: '100%', 
-      height: '100%', 
-      margin: 0, 
-      padding: 0,
-      zIndex: 0,
-      pointerEvents: 'auto'
-    }}>
-      <Canvas
-        style={{ 
-          display: 'block', 
-          width: '100%', 
-          height: '100%',
-          position: 'relative',
-          zIndex: 0
-        }}
-        camera={{ position: [32.19, -1.37, -31.22], fov: 45 }}
-        dpr={[1, 2]}
-        gl={{ 
-          antialias: true,
-          alpha: true,
-          stencil: false,
-          depth: true,
-          powerPreference: 'high-performance'
-        }}
-        shadows
-      >
+    <OrbitControls 
+      enableDamping={true}
+      dampingFactor={0.05}
+      onChange={() => {
+        // Log camera position whenever it changes
+        console.log('Camera position:', {
+          x: camera.position.x.toFixed(2),
+          y: camera.position.y.toFixed(2),
+          z: camera.position.z.toFixed(2)
+        });
+      }}
+    />
+  );
+};
+
+function Scene({ scrollytellingMode = false, onRockClick }: { scrollytellingMode?: boolean, onRockClick?: () => void }) {
+  // Add a state to track whether free camera mode is active
+  const [freeCameraActive, setFreeCameraActive] = useState(false);
+  // Add day/night mode state - synced with camera mode
+  const [isDayMode, setIsDayMode] = useState(false);
+  // Add scrollytelling mode state - start with scrollytelling active by default
+  const [scrollytellingActive, setScrollytellingActive] = useState(true);
+  // Add a state to track whether the rock is hovered
+  const [isRockHovered, setIsRockHovered] = useState(false);
+  
+  // Handle rock click event
+  const handleRockClick = () => {
+    console.log("Rock clicked in Scene component");
+    if (onRockClick) {
+      onRockClick();
+    }
+  };
+
+  // Add keyboard event listeners to toggle modes
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 'p' key toggles free camera mode
+      if (event.key === 'p' || event.key === 'P') {
+        // Disable scrollytelling mode when entering free camera
+        setScrollytellingActive(false);
+        
+        // Use functional updates to avoid needing freeCameraActive in dependencies
+        setFreeCameraActive(prev => {
+          const newState = !prev;
+          // Set day mode to match free camera state
+          setIsDayMode(newState);
+          console.log(`Free camera mode ${newState ? 'activated' : 'deactivated'}, ${newState ? 'Day' : 'Night'} mode`);
+          return newState;
+        });
+      }
+      
+      // 's' key toggles scrollytelling mode (when not in free camera)
+      if ((event.key === 's' || event.key === 'S') && !freeCameraActive) {
+        setScrollytellingActive(prev => {
+          const newState = !prev;
+          console.log(`Scrollytelling mode ${newState ? 'activated' : 'deactivated'}`);
+          return newState;
+        });
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [freeCameraActive]); // Need freeCameraActive in dependencies for 's' key check
+  
+  // Add a visual indicator when a special mode is active
+  const ModeIndicator = () => {
+    if (freeCameraActive) {
+      return (
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(0,0,0,0.5)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontFamily: 'monospace',
+          zIndex: 1000
+        }}>
+          Free Camera Mode - Daytime (WASD to move, Mouse to look, Shift to sprint)
+          <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+            {document.pointerLockElement ? 
+              "Mouse locked for precise control - Press ESC to release" : 
+              "Click to activate mouse look (currently inactive)"}
+          </div>
+          <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+            Press 'R' to reset camera orientation if view is incorrect
+          </div>
+          <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+            Press 'P' to exit and return to night view
+          </div>
+        </div>
+      );
+    } else if (scrollytellingActive) {
+      return (
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(0,0,0,0.5)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontFamily: 'monospace',
+          zIndex: 1000
+        }}>
+          Scrollytelling Mode
+          <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+            Scroll to navigate the experience
+          </div>
+          <div style={{ fontSize: '0.8em', marginTop: '4px' }}>
+            Press 'S' to exit and return to normal view
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // If used in scrollytelling mode, just return the scene objects
+  if (scrollytellingMode) {
+    return (
+      <>
         <color attach="background" args={['#1a2435']} />
         <fog attach="fog" args={['#1a2435', 10, 30]} />
         
-        {/* Main scene content - reduced intensity for evening */}
-        <ambientLight intensity={0.2} color="#3a4a6a" />
-        <directionalLight 
-          intensity={1.0} 
-          position={[15, 20, 10]} 
-          color="#8090c0" 
-          castShadow 
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-far={50}
-          shadow-camera-left={-20}
-          shadow-camera-right={20}
-          shadow-camera-top={20}
-          shadow-camera-bottom={-20}
-        />
-        <directionalLight intensity={0.2} position={[-10, -5, 5]} color="#4a5a8a" />
-        
-        {/* Add a spotlight to highlight the rock - warmer color for evening light */}
-        <spotLight
-          position={[15, 10, -5]}
-          angle={0.3}
-          penumbra={0.8}
-          intensity={0.8}
-          color="#d0a070"
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-        />
-        
-        {/* Use FloatingCamera instead of OrbitDebugger */}
-        <FloatingCamera />
-        {/* Comment out the orbit debugger */}
-        {/* <OrbitDebugger /> */}
-        
-        {/* Mountain landscape from GLTF */}
-        <MountainLandscape />
-        
-        {/* Igloo structure positioned on the mountain */}
-        <group position={[0, 1, 0]}>
-          <Igloo />
+        {/* Include only scene elements, no camera controls or effects */}
+        <group position={[0, 0, 0]}>
+          {/* Mountain landscape from GLTF */}
+          <MountainLandscape />
+          
+          {/* Igloo structure positioned on the mountain */}
+          <group position={[0, 1, 0]}>
+            <Igloo />
+          </group>
+          
+          {/* Floating fractured rock model */}
+          <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
+            {/* Evening/nighttime lighting for the rock */}
+            <spotLight
+              position={[3, 5, 3]}
+              angle={0.6}
+              penumbra={0.7}
+              intensity={1.5}
+              color="#e08060"
+              castShadow
+              distance={30}
+            />
+            <spotLight
+              position={[-2, -3, 5]}
+              angle={0.7}
+              penumbra={0.8}
+              intensity={0.8}
+              color="#6070b0"
+              castShadow={false}
+              distance={25}
+            />
+            
+            {/* Center light source radiating through cracks */}
+            <pointLight 
+              position={[0, 0.25, 0.15]} 
+              intensity={20} 
+              color="#c8ecec"
+              distance={100.5}
+              decay={0.2}
+            />
+            
+            <FracturedGLBRock 
+              onHover={() => setIsRockHovered(true)}
+              onBlur={() => setIsRockHovered(false)}
+              onRockClick={handleRockClick}
+              position={[0, 0, 0]}
+              appearThreshold={0.45}
+            />
+          </group>
+          
+          {/* Stumpington tree stump - placed near the floating rock */}
+          <group position={[22, -3.9, -20]} rotation={[0.1, Math.PI / 3, 0.05]}>
+            <Stumpington scale={[1.8, 0.7, 1.8]} />
+            
+            {/* Add spotlight to illuminate the stump */}
+            <spotLight
+              position={[0, 3, 0]}
+              angle={0.5}
+              penumbra={0.9}
+              intensity={0.8}
+              color="#d0a070"
+              castShadow
+              distance={10}
+            />
+            {/* Add a subtle glow effect to the stump */}
+            <pointLight
+              position={[0, 0.2, 0]}
+              intensity={0.4}
+              color="#4d2e10"
+              distance={5}
+              decay={2}
+            />
+          </group>
+          
+          {/* Pine Tree to the right of the floating rock - close to camera for visibility */}
+          <group position={[27, -3, -19]} rotation={[0, Math.PI / 5, 0]}>
+            <PineTree scale={[2, 2, 2]} />
+            
+            {/* Add spotlight to illuminate the tree */}
+            <spotLight
+              position={[0, 8, 0]}
+              angle={0.6}
+              penumbra={0.8}
+              intensity={2.0}
+              color="#c0d0ff"
+              castShadow
+              distance={20}
+            />
+          </group>
+          
+          {/* Pine Tree */}
+          <PineTree 
+            position={[7, -1.1, -8]} 
+            scale={[8, 8, 8]} 
+            rotation={[0, 0, 0]} 
+          />
+          
+          {/* Second Pine Tree - positioned right next to the first one */}
+          <PineTree 
+            position={[15, -1.5, -10]} 
+            scale={[7, 7.5, 7]} 
+            rotation={[0, Math.PI / 6, 0]} 
+          />
+          
+          {/* Environment map for better PBR materials */}
+          <Environment preset="night" background={false} />
+          
+          {/* Snow effects */}
+          <SimpleSnow />
         </group>
         
-        {/* Floating fractured rock model */}
-        <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
-          {/* Evening lighting for the rock */}
-          <spotLight
-            position={[3, 5, 3]}
-            angle={0.6}
-            penumbra={0.7}
-            intensity={1.5}
-            color="#e08060"
-            castShadow
-            distance={30}
+        {/* Add the floating text near the rock */}
+        <group renderOrder={1}>
+          <FloatingText 
+            position={[25, 3, -20]} // Position above and to the right of the rock
+            rockPosition={[23, 0, -22]} // Rock's position
+            isHovered={isRockHovered}
+            scale={0.8} // Control the size of text and line together
           />
+        </group>
+      </>
+    );
+  }
+
+  // For standlone mode - when not used in scrollytelling
+  // Add an overlay div that can display the scene mode indicators
+  return (
+    <>
+      {/* Mode indicator - only show if not in scrollytelling mode */}
+      <div style={{ 
+        position: 'absolute',
+        top: 0, 
+        left: 0, 
+        width: '100%', 
+        height: '100%'
+      }}>
+        {!scrollytellingMode && <ModeIndicator />}
+      </div>
+      
+      {/* Render the scene content conditionally based on mode */}
+      {freeCameraActive ? (
+        // Free camera mode (original)
+        <>
+          <color attach="background" args={[isDayMode ? '#87CEEB' : '#1a2435']} />
+          {!isDayMode && <fog attach="fog" args={['#1a2435', 10, 30]} />}
+          
+          {/* Daytime lighting */}
+          <ambientLight intensity={0.6} color="#ffffff" />
+          <directionalLight 
+            intensity={1.5} 
+            position={[15, 20, 10]} 
+            color="#fffaf0" 
+            castShadow 
+          />
+          <hemisphereLight intensity={0.5} color="#87CEEB" groundColor="#228B22" />
+          
+          <FreeCameraControls isActive={true} />
+          
+          {/* Original scene elements */}
+          <group position={[0, 0, 0]}>
+            {/* Keep existing scene contents here */}
+          </group>
+        </>
+      ) : scrollytellingActive ? (
+        // Scrollytelling mode
+        <>
+          <color attach="background" args={['#1a2435']} />
+          <fog attach="fog" args={['#1a2435', 10, 30]} />
+          
+          {/* Nighttime lighting */}
+          <ambientLight intensity={0.2} />
+          <directionalLight 
+            intensity={0.5} 
+            position={[10, 10, 5]} 
+            color="#b0c4de" 
+          />
+          
+          <group position={[0, 0, 0]}>
+            {/* Mountain landscape from GLTF */}
+            <MountainLandscape />
+            
+            {/* Igloo structure positioned on the mountain */}
+            <group position={[0, 1, 0]}>
+              <Igloo />
+            </group>
+            
+            {/* Floating fractured rock model */}
+            <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
+              {/* Evening/nighttime lighting for the rock */}
+              <spotLight
+                position={[3, 5, 3]}
+                angle={0.6}
+                penumbra={0.7}
+                intensity={1.5}
+                color="#e08060"
+                castShadow
+                distance={30}
+              />
+              <spotLight
+                position={[-2, -3, 5]}
+                angle={0.7}
+                penumbra={0.8}
+                intensity={0.8}
+                color="#6070b0"
+                castShadow={false}
+                distance={25}
+              />
+              
+              {/* Center light source radiating through cracks */}
+              <pointLight 
+                position={[0, 0.25, 0.15]} 
+                intensity={20} 
+                color="#c8ecec"
+                distance={100.5}
+                decay={0.2}
+              />
+              
+              <FracturedGLBRock 
+                onHover={() => setIsRockHovered(true)}
+                onBlur={() => setIsRockHovered(false)}
+                onRockClick={handleRockClick}
+                position={[0, 0, 0]}
+                appearThreshold={0.45}
+              />
+            </group>
+            
+            {/* Stumpington tree stump - placed near the floating rock */}
+            <group position={[22, -3.9, -20]} rotation={[0.1, Math.PI / 3, 0.05]}>
+              <Stumpington scale={[1.8, 0.7, 1.8]} />
+              
+              {/* Add spotlight to illuminate the stump */}
+              <spotLight
+                position={[0, 3, 0]}
+                angle={0.5}
+                penumbra={0.9}
+                intensity={0.8}
+                color="#d0a070"
+                castShadow
+                distance={10}
+              />
+              {/* Add a subtle glow effect to the stump */}
+              <pointLight
+                position={[0, 0.2, 0]}
+                intensity={0.4}
+                color="#4d2e10"
+                distance={5}
+                decay={2}
+              />
+            </group>
+            
+            {/* Pine Tree to the right of the floating rock - close to camera for visibility */}
+            <group position={[27, -3, -19]} rotation={[0, Math.PI / 5, 0]}>
+              <PineTree scale={[2, 2, 2]} />
+              
+              {/* Add spotlight to illuminate the tree */}
+              <spotLight
+                position={[0, 8, 0]}
+                angle={0.6}
+                penumbra={0.8}
+                intensity={2.0}
+                color="#c0d0ff"
+                castShadow
+                distance={20}
+              />
+            </group>
+            
+            {/* Pine Tree */}
+            <PineTree 
+              position={[7, -1.1, -8]} 
+              scale={[8, 8, 8]} 
+              rotation={[0, 0, 0]} 
+            />
+            
+            {/* Second Pine Tree - positioned right next to the first one */}
+            <PineTree 
+              position={[15, -1.5, -10]} 
+              scale={[7, 7.5, 7]} 
+              rotation={[0, Math.PI / 6, 0]} 
+            />
+            
+            {/* Environment map for better PBR materials */}
+            <Environment preset="night" background={false} />
+            
+            {/* Snow effects */}
+            <SimpleSnow />
+          </group>
+        </>
+      ) : (
+        // Default mode (original scene)
+        <>
+          <color attach="background" args={['#1a2435']} />
+          <fog attach="fog" args={['#1a2435', 10, 30]} />
+          
+          {/* Nighttime lighting */}
+          <ambientLight intensity={0.2} color="#3a4a6a" />
+          <hemisphereLight intensity={0.3} color="#b0c4de" groundColor="#000033" />
+          <directionalLight 
+            intensity={1.0} 
+            position={[15, 20, 10]} 
+            color="#8090c0" 
+            castShadow 
+          />
+          <directionalLight intensity={0.2} position={[-10, -5, 5]} color="#4a5a8a" />
+          
+          {/* Add a spotlight to highlight the rock */}
           <spotLight
-            position={[-2, -3, 5]}
-            angle={0.7}
+            position={[15, 10, -5]}
+            angle={0.3}
             penumbra={0.8}
             intensity={0.8}
-            color="#6070b0"
-            castShadow={false}
-            distance={25}
-          />
-          
-          {/* Center light source radiating through cracks */}
-          <pointLight 
-            position={[0, 0.25, 0.15]} 
-            intensity={20} 
-            color="#c8ecec" 
-            distance={100.5}
-            decay={0.2}
-          />
-          
-          <FracturedGLBRock />
-        </group>
-        
-        {/* Pine Tree to the right of the floating rock - close to camera for visibility */}
-        <group position={[27, -3, -19]} rotation={[0, Math.PI / 5, 0]}>
-         
-          
-          {/* Try different scale */}
-          <PineTree scale={[2, 2, 2]} />
-          
-          {/* Add spotlight to illuminate the tree */}
-          <spotLight
-            position={[0, 8, 0]}
-            angle={0.6}
-            penumbra={0.8}
-            intensity={2.0}
-            color="#c0d0ff"
+            color="#d0a070"
             castShadow
-            distance={20}
           />
-        </group>
-        
-        {/* Pine Tree */}
-        <PineTree 
-          position={[7, -1.1, -8]} 
-          scale={[8, 8, 8]} 
-          rotation={[0, 0, 0]} 
-        />
-        
-        {/* Second Pine Tree - positioned right next to the first one */}
-        <PineTree 
-          position={[15, -1.5, -10]} 
-          scale={[7, 7.5, 7]} 
-          rotation={[0, Math.PI / 6, 0]} 
-        />
-        
-        {/* Environment map for better PBR materials */}
-        <Environment preset="night" background={false} />
-        
-        {/* Snow effects */}
-        <SimpleSnow />
-        
-        {/* Environment settings */}
-        <Fog />
-    </Canvas>
-    </div>
+          
+          {/* Default floating camera */}
+          <FloatingCamera />
+          
+          {/* Original scene elements */}
+          <group>
+            {/* Mountain landscape from GLTF */}
+            <MountainLandscape />
+            
+            {/* Igloo structure positioned on the mountain */}
+            <group position={[0, 1, 0]}>
+              <Igloo />
+            </group>
+            
+            {/* Floating fractured rock model */}
+            <group position={[23, 0, -22]} scale={[8, 8, 8]} rotation={[1, Math.PI / 3, 0.03]}>
+              {/* Evening/nighttime lighting for the rock */}
+              <spotLight
+                position={[3, 5, 3]}
+                angle={0.6}
+                penumbra={0.7}
+                intensity={1.5}
+                color="#e08060"
+                castShadow
+                distance={30}
+              />
+              <spotLight
+                position={[-2, -3, 5]}
+                angle={0.7}
+                penumbra={0.8}
+                intensity={0.8}
+                color="#6070b0"
+                castShadow={false}
+                distance={25}
+              />
+              
+              {/* Center light source radiating through cracks */}
+              <pointLight 
+                position={[0, 0.25, 0.15]} 
+                intensity={20} 
+                color="#c8ecec"
+                distance={100.5}
+                decay={0.2}
+              />
+              
+              <FracturedGLBRock 
+                onHover={() => setIsRockHovered(true)}
+                onBlur={() => setIsRockHovered(false)}
+                onRockClick={handleRockClick}
+                position={[0, 0, 0]}
+                appearThreshold={0.45}
+              />
+            </group>
+            
+            {/* Stumpington tree stump - placed near the floating rock */}
+            <group position={[22, -3.9, -20]} rotation={[0.1, Math.PI / 3, 0.05]}>
+              <Stumpington scale={[1.8, 0.7, 1.8]} />
+              
+              {/* Add spotlight to illuminate the stump */}
+              <spotLight
+                position={[0, 3, 0]}
+                angle={0.5}
+                penumbra={0.9}
+                intensity={0.8}
+                color="#d0a070"
+                castShadow
+                distance={10}
+              />
+              {/* Add a subtle glow effect to the stump */}
+              <pointLight
+                position={[0, 0.2, 0]}
+                intensity={0.4}
+                color="#4d2e10"
+                distance={5}
+                decay={2}
+              />
+            </group>
+            
+            {/* Pine Tree to the right of the floating rock - close to camera for visibility */}
+            <group position={[27, -3, -19]} rotation={[0, Math.PI / 5, 0]}>
+              <PineTree scale={[2, 2, 2]} />
+              
+              {/* Add spotlight to illuminate the tree */}
+              <spotLight
+                position={[0, 8, 0]}
+                angle={0.6}
+                penumbra={0.8}
+                intensity={2.0}
+                color="#c0d0ff"
+                castShadow
+                distance={20}
+              />
+            </group>
+            
+            {/* Pine Tree */}
+            <PineTree 
+              position={[7, -1.1, -8]} 
+              scale={[8, 8, 8]} 
+              rotation={[0, 0, 0]} 
+            />
+            
+            {/* Second Pine Tree - positioned right next to the first one */}
+            <PineTree 
+              position={[15, -1.5, -10]} 
+              scale={[7, 7.5, 7]} 
+              rotation={[0, Math.PI / 6, 0]} 
+            />
+            
+            {/* Environment map for better PBR materials */}
+            <Environment preset="night" background={false} />
+            
+            {/* Snow effects */}
+            <SimpleSnow />
+          </group>
+        </>
+      )}
+    </>
   );
 }
 

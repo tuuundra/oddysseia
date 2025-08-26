@@ -3,14 +3,32 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
-const FracturedGLBRock = () => {
+// Create a utility function for glow effects
+const createMaterialWithGlow = (originalMaterial: THREE.Material, glowStrength: number = 0) => {
+  // Simply return a clone of the original material without any glow effects
+  return originalMaterial.clone();
+};
+
+interface FracturedGLBRockProps {
+  position?: [number, number, number];
+  appearThreshold?: number;
+  onHover?: () => void;
+  onBlur?: () => void;
+  onRockClick?: () => void;
+}
+
+const FracturedGLBRock = ({
+  position = [0, 0, 0],
+  appearThreshold = 0.45,
+  onHover,
+  onBlur,
+  onRockClick
+}: FracturedGLBRockProps) => {
   const groupRef = useRef<THREE.Group>(null);
   
   // Track rotation of the entire rock group
   const rockRotation = useRef({
-    x: 0,
-    y: 0,
-    z: 0
+    y: 0 // Only need Y-axis rotation now
   });
   
   // Use an absolute path to the GLB file
@@ -39,14 +57,45 @@ const FracturedGLBRock = () => {
   const isMouseMoving = useRef(false);
   const lastMouseMoveTime = useRef(0);
   
+  // For momentum effect
+  const lastHoverTime = useRef(0);
+  const hasMomentum = useRef(false);
+  const momentumPhase = useRef(0); // 0-1 value for momentum curve
+  const lastHoverPoint = useRef(new THREE.Vector3(0, 0, 0));
+  
+  // Add stable proximity state tracking to reduce jitter
+  const isInProximity = useRef(false);
+  const proximityStartTime = useRef(0);
+  const proximityHoldTime = 300; // ms to hold expansion after entering proximity
+  
   // Track all fragments for easy access during hover effects
   const fragmentsMap = useRef(new Map<string, {
     mesh: THREE.Mesh,
     distanceFromCenter: number,
     directionFromCenter: THREE.Vector3,
     originalPosition: THREE.Vector3,
-    currentExpansion: number // Track current expansion amount for smooth transitions
+    currentExpansion: number, // Track current expansion amount for smooth transitions
+    originalMaterial: THREE.Material | THREE.Material[], // Store the original material
+    currentGlow: number // Track current glow amount
   }>());
+  
+  // Track the glow map
+  const glowMap = useRef(new Map<string, number>()); // Map fragment names to glow strength
+  
+  // Add fragment neighbors reference at the top with other refs
+  const fragmentNeighborsRef = useRef(new Map<string, string[]>());
+  
+  const pivotOffsetX = 0; // Adjust to move pivot left/right
+  const pivotOffsetY = 0; // Adjust to move pivot up/down
+  const pivotOffsetZ = 0; // Adjust to move pivot forward/back
+  
+  const rockOffsetX = 0.2; // Adjust to move rock left/right relative to pivot
+  const rockOffsetY = 0; // Adjust to move rock up/down relative to pivot
+  const rockOffsetZ = 0.05; // Adjust to move rock forward/back relative to pivot
+  
+  // Add these at the top with other refs
+  const hoverAreaRef = useRef<THREE.Mesh>(null);
+  const textHoverRef = useRef(false);
   
   // Mouse event handlers
   useEffect(() => {
@@ -207,8 +256,8 @@ const FracturedGLBRock = () => {
           // Adjust explosion amount based on position - less explosion for fragments near center
           // This will help ensure the center light source is better hidden
           const distFromCenter = worldFragmentCenter.distanceTo(centerPoint.current);
-          const maxExplosion = 0.04;  // Slightly larger overall explosion
-          const minExplosion = 0.01;  // Much smaller explosion for center pieces
+          const maxExplosion = 0.001;  // REDUCED from 0.04 for tighter default spacing
+          const minExplosion = 0.0005;  // REDUCED from 0.01 for center pieces
           
           // Calculate explosion amount - closer to center = less explosion
           const explosionFactor = Math.min(distFromCenter * 2, 1.0); // Scale factor
@@ -234,7 +283,9 @@ const FracturedGLBRock = () => {
             distanceFromCenter: distFromCenter,
             directionFromCenter: direction.clone(),
             originalPosition: child.position.clone(),
-            currentExpansion: 0
+            currentExpansion: 0,
+            originalMaterial: child.material,
+            currentGlow: 0
           });
           
           // Make fragments interactive
@@ -255,6 +306,9 @@ const FracturedGLBRock = () => {
           
           // Log materials to see what's available
           console.log('Original material:', child.material);
+          
+          // Store the original material for later reference
+          const originalMaterial = child.material;
           
           // Preserve original material but enhance it
           if (child.material) {
@@ -286,33 +340,97 @@ const FracturedGLBRock = () => {
               color: '#a2a2a2',
               roughness: 0.9,
               metalness: 0.1,
-              emissive: "#193319",
-              emissiveIntensity: 0.1,
             });
+          }
+          
+          // Make sure the mesh has a name for the fragments map
+          if (!child.name) {
+            child.name = 'fragment_' + child.uuid.substring(0, 8);
+          }
+          
+          // Add to glow map with initial value of 0
+          glowMap.current.set(child.name, 0);
+          
+          // Update the fragments map with the original material
+          const fragmentData = fragmentsMap.current.get(child.name);
+          if (fragmentData) {
+            fragmentData.originalMaterial = originalMaterial;
+            fragmentData.currentGlow = 0;
           }
         }
       });
     }
   }, []);
   
+  // Calculate fragment neighboring map on initialization
+  useEffect(() => {
+    if (scene.current) {
+      // After setting up fragments, calculate which fragments are neighbors
+      // A map to store each fragment's neighboring fragments
+      const neighborMap = new Map<string, string[]>();
+      
+      // Function to check if two fragments are close enough to be neighbors
+      const areFragmentsNeighboring = (pos1: THREE.Vector3, pos2: THREE.Vector3) => {
+        // Use a smaller threshold to only consider fragments that nearly touch
+        const neighboringThreshold = 0.1; // Reduced from typical values to only get very close neighbors
+        return pos1.distanceTo(pos2) < neighboringThreshold;
+      };
+      
+      // Get all fragment meshes
+      const fragmentMeshes: {name: string, position: THREE.Vector3}[] = [];
+      
+      scene.current.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.visible && child.userData.isFragment) {
+          fragmentMeshes.push({
+            name: child.name,
+            position: child.position.clone()
+          });
+        }
+      });
+      
+      // Calculate neighboring relationships
+      fragmentMeshes.forEach(fragment => {
+        const neighbors: string[] = [];
+        
+        fragmentMeshes.forEach(otherFragment => {
+          if (fragment.name !== otherFragment.name) {
+            if (areFragmentsNeighboring(fragment.position, otherFragment.position)) {
+              neighbors.push(otherFragment.name);
+            }
+          }
+        });
+        
+        neighborMap.set(fragment.name, neighbors);
+      });
+      
+      // Store the neighbor map as a ref
+      fragmentNeighborsRef.current = neighborMap;
+      
+      // Log for debugging
+      console.log('Fragment neighbors map created:', neighborMap);
+    }
+  }, []);
+  
   // Animate the rock fragments with subtle floating motion and handle mouse interaction
   useFrame(({ clock }) => {
-    if (!groupRef.current) return;
+    if (!groupRef.current || !hoverAreaRef.current) return;
     
     const t = clock.getElapsedTime();
     
     // Update the overall rotation of the entire rock group
-    // Using very slow rotation speeds for a subtle effect
-    rockRotation.current.y += 0.0005; // Slow rotation around Y axis
-    rockRotation.current.x = Math.sin(t * 0.1) * 0.01; // Very subtle tilt on X axis
-    rockRotation.current.z = Math.cos(t * 0.08) * 0.005; // Extremely subtle tilt on Z axis
+    // Using very slow rotation speed for a subtle effect
+    rockRotation.current.y -= -0.0015; // Negative value for counter-clockwise rotation
     
     // Apply the rotation to the entire group
-    if (groupRef.current) {
-      groupRef.current.rotation.x = rockRotation.current.x;
-      groupRef.current.rotation.y = rockRotation.current.y;
-      groupRef.current.rotation.z = rockRotation.current.z;
-    }
+    groupRef.current.rotation.y = rockRotation.current.y;
+    
+    // Add a slight tilt to make the rotation more horizontal
+    const tiltAngle = Math.PI / 20; // ~90 degrees tilt
+    groupRef.current.rotation.x = tiltAngle; // Tilt forward around X-axis
+    
+    // Add a slight roll to make the rotation more dynamic
+    const rollAngle = Math.sin(t * 0.1) * 0.01; // Subtle oscillating roll
+    groupRef.current.rotation.z = rollAngle;
     
     // Check if mouse has been still for a while
     const MOUSE_STILL_THRESHOLD = 100; // ms
@@ -329,6 +447,9 @@ const FracturedGLBRock = () => {
     // Find the closest intersected fragment
     let hoveredMesh: THREE.Mesh | null = null;
     
+    // Track if mouse is in proximity to any fragment
+    let mouseInProximity = false;
+    
     if (intersects.length > 0) {
       // Find the first object that is a fragment
       for (const intersect of intersects) {
@@ -340,10 +461,46 @@ const FracturedGLBRock = () => {
         
         if (object && object instanceof THREE.Mesh) {
           hoveredMesh = object;
+          mouseInProximity = true;
           break;
         }
       }
     }
+    
+    // Check if mouse is in general proximity to the rock (even without direct hover)
+    // This prevents retraction when mouse is still near the rock
+    if (!mouseInProximity) {
+      // Calculate distance from mouse ray to rock center
+      const rockCenterWorld = new THREE.Vector3();
+      if (groupRef.current) {
+        groupRef.current.getWorldPosition(rockCenterWorld);
+      }
+      
+      // Project mouse position into 3D space at the rock's distance from camera
+      const mouseRay = raycaster.current.ray.clone();
+      const distanceToRock = rockCenterWorld.distanceTo(camera.position);
+      const mousePoint = mouseRay.at(distanceToRock, new THREE.Vector3());
+      
+      // Check if mouse is within proximity radius
+      const proximityThreshold = 5.0; // Adjust based on your scene scale
+      mouseInProximity = mousePoint.distanceTo(rockCenterWorld) < proximityThreshold;
+    }
+    
+    // Update stable proximity state with hysteresis to prevent rapid toggling
+    if (mouseInProximity && !isInProximity.current) {
+      // Just entered proximity
+      isInProximity.current = true;
+      proximityStartTime.current = performance.now();
+    } else if (!mouseInProximity && isInProximity.current) {
+      // Only exit proximity state if we've been out of proximity for a short time
+      // This prevents flickering in/out of proximity state
+      if (performance.now() - lastHoverTime.current > 150) {
+        isInProximity.current = false;
+      }
+    }
+    
+    // Use the stable proximity state for expansion logic to prevent jitter
+    const stableProximity = isInProximity.current;
     
     // Store the hovered fragment in a ref to avoid state updates on every frame
     const currentHovered = hoveredMesh ? hoveredMesh.name : null;
@@ -360,52 +517,114 @@ const FracturedGLBRock = () => {
     // Calculate hover positions for all fragments
     const hoverPoint = hoveredMesh ? new THREE.Vector3().setFromMatrixPosition(hoveredMesh.matrixWorld) : null;
     
+    // Store the mouse point in 3D space for proximity-based expansion
+    const mouseWorldPoint = new THREE.Vector3();
+    
+    // If mouse is in proximity but not hovering, we need a position for distance calculations
+    if (!hoverPoint && stableProximity) {
+      // Calculate a 3D point for the mouse position at the rock's distance from camera
+      const rockCenterWorld = new THREE.Vector3();
+      if (groupRef.current) {
+        groupRef.current.getWorldPosition(rockCenterWorld);
+      }
+      const mouseRay = raycaster.current.ray.clone();
+      const distanceToRock = rockCenterWorld.distanceTo(camera.position);
+      mouseWorldPoint.copy(mouseRay.at(distanceToRock, new THREE.Vector3()));
+    }
+    
+    // If we have a hover point, update the last hover time and position
+    if (hoverPoint) {
+      lastHoverTime.current = performance.now();
+      lastHoverPoint.current.copy(hoverPoint);
+      hasMomentum.current = true;
+      momentumPhase.current = 0; // Reset momentum phase during active hover
+    } else if (stableProximity) {
+      // If mouse is still in proximity, keep updating the hover time to prevent retraction
+      lastHoverTime.current = performance.now();
+      lastHoverPoint.current.copy(mouseWorldPoint); // Use the calculated mouse world point
+      hasMomentum.current = true;
+    }
+    
+    // Calculate time since last hover/proximity
+    const timeSinceHover = performance.now() - lastHoverTime.current;
+    
+    // Check if we're in momentum phase (recently hovered but not currently hovering)
+    // Only enter momentum phase if we're actually leaving proximity completely
+    const inMomentumPhase = hasMomentum.current && !hoverPoint && !stableProximity && timeSinceHover < 200;
+    
+    // Handle momentum phase - continuation of expansion after mouse leaves
+    if (inMomentumPhase) {
+      // Progress from 0 to 1 over the momentum duration
+      momentumPhase.current = Math.min(timeSinceHover / 200, 1); // UPDATED to match new duration
+    } else if (!hoverPoint && hasMomentum.current) {
+      // We've passed the momentum phase, reset
+      hasMomentum.current = false;
+    }
+    
     // Max expansion amount when hovering
-    const maxExpansion = 0.15;
+    const maxExpansion = .30; // INCREASED from .22 to .30 for more dramatic outward movement
     
     // Max distance for influence spreading to nearby fragments
-    const influenceRadius = 1.8; // Increased radius for wider effect area
+    const influenceRadius = 1.2;
     
-    // Animation speed for expansion/contraction - much slower overall
-    const animSpeed = isMouseMoving.current ? 0.04 : 0.01; // Reduced by 50% for slower animation
+    // Animation speed for expansion/contraction
+    const animSpeed = isMouseMoving.current ? 0.20 : 0.15; // INCREASED for more responsive expansion
     
-    // Smooth interpolation of the hover point
+    // Smooth interpolation of the hover point with momentum
     if (hoverPoint) {
-      // If mouse has been still for a while, lock the target position completely
-      // This prevents micromovements in the hover detection that can cause jitters
+      // Regular hover behavior
       if (!isMouseMoving.current) {
-        if (performance.now() - lastMouseMoveTime.current > 500) { // Slightly longer threshold for complete position lock
-          // After 500ms of no movement, just maintain the current position
-          // Don't update targetHoverPoint at all
+        if (performance.now() - lastMouseMoveTime.current > 300) {
+          // After 300ms of no movement, just maintain the current position
         } else {
-          // During the initial stillness period, allow small adjustments
           targetHoverPoint.current.copy(hoverPoint);
-          lastMousePos.current.lerp(targetHoverPoint.current, 0.15); // Slightly slower adjustment (reduced from 0.2)
+          lastMousePos.current.lerp(targetHoverPoint.current, 0.5);
         }
       } else {
-        // Normal movement interpolation - smoother with slowed down lerp
         targetHoverPoint.current.copy(hoverPoint);
-        lastMousePos.current.lerp(targetHoverPoint.current, 0.06); // Significantly slower interpolation (reduced from 0.1)
+        lastMousePos.current.lerp(targetHoverPoint.current, 0.4);
+      }
+    } else if (stableProximity) {
+      // If just in proximity, use the mouse world point
+      targetHoverPoint.current.copy(mouseWorldPoint);
+      lastMousePos.current.lerp(targetHoverPoint.current, 0.4);
+    } else if (inMomentumPhase) {
+      // During momentum phase - keep the last hover point, but apply momentum curve
+      if (momentumPhase.current <= 0.25) {
+        // Continue stronger movement in direction of last movement
+        targetHoverPoint.current.copy(lastHoverPoint.current);
+        lastMousePos.current.lerp(targetHoverPoint.current, 0.3);
       }
     } else {
-      // No hover, gradually move target away
+      // No hover and no momentum, rapidly reset
       targetHoverPoint.current.set(0, 0, 0);
-      lastMousePos.current.lerp(targetHoverPoint.current, 0.02); // Even slower transition back (reduced from 0.03)
+      lastMousePos.current.lerp(targetHoverPoint.current, 0.3);
     }
+    
+    // Reset all glow strengths first for re-calculation
+    fragmentsMap.current.forEach((fragmentData, name) => {
+      // Always set glow to 0 instead of calculating glow values
+      fragmentData.currentGlow = 0;
+    });
+    
+    // Removed glow setting for hovered fragment - no longer needed since glow is disabled
     
     // Update all fragments positions based on hover state
     fragmentsMap.current.forEach((fragmentData, name) => {
-      const { mesh, directionFromCenter, originalPosition } = fragmentData;
+      const { mesh, directionFromCenter, originalPosition, currentGlow } = fragmentData;
       let targetExpansion = 0;
       
-      // If we have a hovered fragment, calculate influence
-      if (hoverPoint) {
-        // Get world position of this fragment
-        const fragWorldPos = new THREE.Vector3();
-        mesh.getWorldPosition(fragWorldPos);
+      // Get world position of this fragment
+      const fragWorldPos = new THREE.Vector3();
+      mesh.getWorldPosition(fragWorldPos);
+      
+      // If we have a hovered fragment or mouse is in proximity, calculate influence
+      if (hoverPoint || stableProximity) {
+        // The point to use for distance calculations (either direct hover or mouse position)
+        const referencePoint = hoverPoint || mouseWorldPoint;
         
-        // Distance from this fragment to the interpolated hover point
-        const distToHover = fragWorldPos.distanceTo(lastMousePos.current);
+        // Distance from this fragment to the interpolated hover/mouse point
+        const distToRef = fragWorldPos.distanceTo(lastMousePos.current);
         
         // Is this the hovered fragment?
         const isHovered = name === hoveredFragmentRef.current;
@@ -413,27 +632,72 @@ const FracturedGLBRock = () => {
         if (isHovered) {
           // Direct hover = maximum expansion
           targetExpansion = maxExpansion;
-        } else if (distToHover < influenceRadius) {
-          // Enhanced influence curve with smoother falloff
-          // Use a cubic falloff that gives more expansion to more fragments
-          const normDist = distToHover / influenceRadius;
-          // Softer, smoother falloff curve with more gradual transition
-          const influence = Math.pow(1 - normDist, 3); 
-          targetExpansion = maxExpansion * influence * 0.9; // Stronger effect for peripheral fragments
+        } else if (distToRef < influenceRadius) {
+          // Enhanced influence curve with steeper falloff
+          const normDist = distToRef / influenceRadius;
+          // Steeper falloff curve for sharper transition
+          const influence = Math.pow(1 - normDist, 4.0);
+          
+          // Scale expansion based on mouse proximity
+          if (hoverPoint) {
+            // Full effect when directly hovering over a fragment
+            targetExpansion = maxExpansion * influence * 0.8;
+          } else if (stableProximity) {
+            // Calculate a distance-based scaling factor for proximity
+            const rockCenterWorld = new THREE.Vector3();
+            if (groupRef.current) {
+              groupRef.current.getWorldPosition(rockCenterWorld);
+            }
+            const distToCenter = mouseWorldPoint.distanceTo(rockCenterWorld);
+            const proximityThreshold = 5.0;
+            const proximityFactor = 1.0 - Math.min(distToCenter / proximityThreshold, 1.0);
+            
+            // Apply scaled expansion based on proximity to rock center
+            targetExpansion = maxExpansion * influence * 0.8 * proximityFactor;
+          }
+        }
+      } else if (inMomentumPhase) {
+        // In momentum phase, calculate based on last hover position
+        // Distance from this fragment to the last hover point
+        const distToLastHover = fragWorldPos.distanceTo(lastMousePos.current);
+        
+        if (distToLastHover < influenceRadius) {
+          // During momentum phase, adjust expansion based on phase
+          const normDist = distToLastHover / influenceRadius;
+          const influence = Math.pow(1 - normDist, 4.0);
+          
+          if (momentumPhase.current <= 0.25) {
+            // First 25% of momentum - INCREASE to 125% of max expansion for extra dramatic effect
+            targetExpansion = maxExpansion * influence * 1.25;
+          } else {
+            // Remaining 75% - rapidly cool off with a steep curve
+            const cooldownFactor = 1 - ((momentumPhase.current - 0.25) / 0.75);
+            const steepCurve = Math.pow(cooldownFactor, 3);
+            targetExpansion = maxExpansion * influence * steepCurve;
+          }
         }
       }
       
       // For moving mouse - implement a staged approach for smoother transitions
       let dampingFactor;
       
+      // Adjust damping based on whether we're expanding or retracting
+      // Use a softer damping when in proximity to prevent jitter
       if (targetExpansion < fragmentData.currentExpansion) {
-        // Returning to rest state - use a slower factor based on how expanded it is
-        // More expanded = faster initial return, slowing down as it approaches rest
-        const expansionRatio = fragmentData.currentExpansion / maxExpansion;
-        dampingFactor = animSpeed * (0.2 + expansionRatio * 0.2); // Progressive return speed
+        // Only allow retraction when not in proximity or actively hovering
+        if (!stableProximity && !hoverPoint) {
+          // Returning to rest state - use a faster factor based on how expanded it is
+          // More expanded = faster initial return
+          const expansionRatio = fragmentData.currentExpansion / maxExpansion;
+          dampingFactor = animSpeed * (0.7 + expansionRatio * 0.8);
+        } else {
+          // When in proximity but expansion is decreasing, use very gentle damping
+          // This prevents jitter during small mouse movements
+          dampingFactor = animSpeed * 0.2;
+        }
       } else {
-        // Expanding - slightly slower expansion for smoothness
-        dampingFactor = animSpeed * 0.7;
+        // Expanding - slightly faster for hovering, slower for proximity
+        dampingFactor = hoverPoint ? animSpeed * 0.9 : animSpeed * 0.6;
       }
       
       // Apply smoothing with added damping to prevent oscillation
@@ -477,6 +741,26 @@ const FracturedGLBRock = () => {
       mesh.rotation.x = origRot.x + Math.sin(t * rotSpeed) * 0.001;
       mesh.rotation.y = origRot.y + Math.cos(t * rotSpeed * 0.7) * 0.001;
       mesh.rotation.z = origRot.z + Math.sin(t * rotSpeed * 0.5) * 0.001;
+      
+      // Apply glow effect with outline appearance
+      if (currentGlow > 0) {
+        // This condition will never be true now since currentGlow is always 0
+        // The code inside is kept for reference but will never execute
+        
+        // ... existing code ...
+        
+      } else {
+        // Reset material when no glow
+        if (Array.isArray(fragmentData.originalMaterial)) {
+          // Clone the original materials to avoid modifying them
+          mesh.material = (fragmentData.originalMaterial as THREE.Material[]).map(mat => mat.clone());
+        } else {
+          mesh.material = (fragmentData.originalMaterial as THREE.Material).clone();
+        }
+        
+        // Keep scale at 1 (normal size)
+        mesh.scale.set(1, 1, 1);
+      }
     });
     
     // Handle any fragments not in the map
@@ -513,12 +797,74 @@ const FracturedGLBRock = () => {
         child.rotation.z = origRot.z + Math.sin(t * rotSpeed * 0.5) * 0.001;
       }
     });
+
+    // Check intersections with invisible hover area
+    const hoverAreaIntersects = raycaster.current.intersectObject(hoverAreaRef.current);
+    const isTextHover = hoverAreaIntersects.length > 0;
+
+    // Update text hover state only
+    if (textHoverRef.current !== isTextHover) {
+      textHoverRef.current = isTextHover;
+      if (isTextHover) {
+        if (onHover) onHover();
+      } else {
+        if (onBlur) onBlur();
+      }
+    }
   });
   
+  // Add a click handler for the hover area
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      // Only process clicks if we have the callback
+      if (!onRockClick) return;
+      
+      // Check if click is on hover area
+      raycaster.current.setFromCamera(mouse.current, camera);
+      if (hoverAreaRef.current) {
+        const intersects = raycaster.current.intersectObject(hoverAreaRef.current);
+        if (intersects.length > 0) {
+          // Call the click handler
+          console.log("%c 🪨 ROCK CLICKED! 🪨 ", "background: #ff0000; color: white; font-size: 20px; padding: 10px;");
+          onRockClick();
+        }
+      }
+    };
+    
+    // Add click event listener
+    window.addEventListener('click', handleClick);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('click', handleClick);
+    };
+  }, [camera, onRockClick]);
+  
   return (
-    <group ref={groupRef} rotation={[rockRotation.current.x, rockRotation.current.y, rockRotation.current.z]}>
-      {/* The actual fractured rock model */}
-      <primitive object={scene.current} />
+    <group ref={groupRef} position={[0, 0.2, 0]}>
+      {/* Invisible hover area for text */}
+      <mesh
+        ref={hoverAreaRef}
+        position={[rockOffsetX, rockOffsetY, rockOffsetZ]} // Use exact same offsets as the rock
+        visible={true}
+        renderOrder={1} // Render before other objects
+      >
+        <sphereGeometry args={[0.33, 16, 8]} /> {/* Increased size for better click detection */}
+        <meshBasicMaterial 
+          color="#ffffff" 
+          transparent={true} 
+          opacity={0} // Very slight opacity to ensure clicks register
+          wireframe={process.env.NODE_ENV === 'development'} // Show wireframe in dev mode
+        />
+      </mesh>
+
+      {/* The actual fractured rock model - position relative to pivot */}
+      <group position={[rockOffsetX, rockOffsetY, rockOffsetZ]}>
+        <primitive 
+          object={scene.current} 
+          position={[0.1, -0.1, -0.1]}  // Keep rock at origin relative to its parent group
+        />
+      </group>
     </group>
   );
 };

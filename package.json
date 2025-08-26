@@ -3,32 +3,48 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "dev:frontend": "vite",
+    "dev:backend": "node app/elevenlabs-integration/backend/server.js",
+    "dev:combined": "next dev & node app/elevenlabs-integration/backend/server.js",
+    "dev:all": "next dev & node app/elevenlabs-integration/backend/server.js & vite"
   },
   "dependencies": {
+    "@11labs/client": "^0.0.8",
+    "@11labs/react": "^0.0.8",
     "@react-spring/three": "^9.7.5",
-    "@react-three/drei": "^10.0.4",
+    "@react-three/drei": "^10.0.5",
     "@react-three/fiber": "^9.1.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "axios": "^1.8.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "elevenlabs": "^1.54.0",
+    "express": "^4.21.2",
     "gsap": "^3.12.7",
     "next": "15.2.2",
+    "postprocessing": "^6.37.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.174.0"
+    "three": "^0.174.0",
+    "vite": "^6.2.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.0.15",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.21",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "glslify-loader": "^2.0.0",
+    "postcss": "^8.5.3",
     "raw-loader": "^4.0.2",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.0.15",
     "typescript": "^5"
   }
 }
