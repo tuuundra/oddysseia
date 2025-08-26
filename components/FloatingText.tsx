@@ -10,9 +10,10 @@ interface FloatingTextProps {
   rockPosition: Vector3Array;
   isHovered: boolean;
   scale?: number; // Add scale property with optional flag
+  enabled?: boolean; // Toggle overlay on/off
 }
 
-export default function FloatingText({ position, rockPosition, isHovered, scale = 1.0 }: FloatingTextProps) {
+export default function FloatingText({ position, rockPosition, isHovered, scale = 1.0, enabled = false }: FloatingTextProps) {
   const groupRef = useRef<THREE.Group>(null);
   const textMaterialRef = useRef<THREE.MeshBasicMaterial>(new THREE.MeshBasicMaterial({
     color: '#ffffff',
@@ -34,7 +35,7 @@ export default function FloatingText({ position, rockPosition, isHovered, scale 
   
   // End of the bend - adjust these values to change the angle
   const bendAngle = -140; // Degrees (90 = right angle, 120 = obtuse, 60 = acute)
-  const bendLength = 1.2; // Length of the bent segment
+  const bendLength = 0.7; // Length of the bent segment
   
   // Convert degrees to radians
   const angleRad = THREE.MathUtils.degToRad(bendAngle);
@@ -57,7 +58,7 @@ export default function FloatingText({ position, rockPosition, isHovered, scale 
 
   // Rotation angles in radians (adjust these values)
   const xRotation = -0.15; // Tilt forward/back
-  const yRotation = -0.6; // Rotate left/right
+  const yRotation = -0.4; // Rotate left/right
   const zRotation = -0.12; // Tilt side to side
 
   // Animate opacity changes
@@ -81,6 +82,9 @@ export default function FloatingText({ position, rockPosition, isHovered, scale 
       );
     }
   });
+
+  // If not enabled, render nothing
+  if (!enabled) return null;
 
   return (
     <group

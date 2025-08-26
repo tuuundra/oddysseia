@@ -130,45 +130,46 @@ export default function Home() {
   
   // Track loading progress for assets - simpler version without model preloading
   useEffect(() => {
-    // Only track simple assets that won't trigger WebAssembly loading
-    const assets = [
-      // Removed 3D models that cause WebAssembly memory issues
-      '/rockanimation.mp4' // Only preload the video
-    ];
-    
-    let loadedCount = 0;
-    let failedCount = 0;
-    
-    // Safer progress tracker with timeout
-    const updateProgress = () => {
-      loadedCount++;
-      const progress = loadedCount / Math.max(1, assets.length);
-      setLoadingProgress(progress);
+    // Preload assets to ensure they're ready for transitions
+    const prefetchResources = async () => {
+      const assetsToPreload = [
+        '/fractured_rock.glb', // Preload 3D model for instant display
+        '/rockanimation_v2.mp4', // Preload forward transition video
+        '/rockanimation_v2_reversed.mp4' // Preload reverse transition video
+      ];
       
-      if ((loadedCount + failedCount) >= assets.length || assets.length === 0) {
-        console.log(`Loading completed: ${loadedCount} loaded, ${failedCount} failed`);
-        // Add artificial delay before removing loading screen
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 2000); // Give time to see the loading animation
-      }
-    };
+      let loadedCount = 0;
+      let failedCount = 0;
+      
+      // Safer progress tracker with timeout
+      const updateProgress = () => {
+        loadedCount++;
+        const progress = loadedCount / Math.max(1, assetsToPreload.length);
+        setLoadingProgress(progress);
+        
+        if ((loadedCount + failedCount) >= assetsToPreload.length || assetsToPreload.length === 0) {
+          console.log(`Loading completed: ${loadedCount} loaded, ${failedCount} failed`);
+          // Add artificial delay before removing loading screen
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 2000); // Give time to see the loading animation
+        }
+      };
 
-    const handleFailure = (url: string) => {
-      console.warn(`Failed to load asset: ${url}`);
-      failedCount++;
+      const handleFailure = (url: string) => {
+        console.warn(`Failed to load asset: ${url}`);
+        failedCount++;
+        
+        if ((loadedCount + failedCount) >= assetsToPreload.length || assetsToPreload.length === 0) {
+          console.log(`Loading completed with errors: ${loadedCount} loaded, ${failedCount} failed`);
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 2000);
+        }
+      };
       
-      if ((loadedCount + failedCount) >= assets.length || assets.length === 0) {
-        console.log(`Loading completed with errors: ${loadedCount} loaded, ${failedCount} failed`);
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 2000);
-      }
-    };
-    
-    // Video loader (only load video, not 3D models)
-    const loadVideo = (url: string) => {
-      return new Promise<void>((resolve) => {
+      // Video loader (only load video, not 3D models)
+      const loadVideo = async (url: string) => {
         try {
           const video = document.createElement('video');
           video.preload = 'metadata'; // Only load metadata, not full video
@@ -179,73 +180,71 @@ export default function Home() {
           video.onloadedmetadata = () => {
             console.log(`Video metadata loaded: ${url}`);
             updateProgress();
-            resolve();
           };
           
           // Handle errors
           video.onerror = () => {
             console.error(`Failed to load video: ${url}`);
             handleFailure(url);
-            resolve();
           };
           
           // Safety timeout - assume loaded after 3 seconds
           setTimeout(() => {
-            if (loadedCount + failedCount < assets.length) {
+            if (loadedCount + failedCount < assetsToPreload.length) {
               console.log(`Video loader timed out: ${url}`);
               updateProgress();
-              resolve();
             }
           }, 3000);
         } catch (error) {
           console.error(`Error setting up video loader: ${url}`, error);
           handleFailure(url);
-          resolve();
         }
-      });
-    };
-    
-    // Start loading process if there are assets to load
-    if (assets.length > 0) {
-      try {
-        assets.forEach((asset) => {
-          if (asset.endsWith('.mp4')) {
-            loadVideo(asset);
-          } else {
-            // For any other type, just mark as loaded
-            console.log(`Skipping preload for: ${asset}`);
-            updateProgress();
-          }
-        });
-      } catch (error) {
-        console.error("Error in asset loading process:", error);
-        setIsLoading(false);
-      }
-    } else {
-      // If no assets to load, show loading screen briefly then fade out
-      const minLoadingTime = setTimeout(() => {
-        setIsLoading(false);
-      }, 2000);
+      };
       
-      return () => clearTimeout(minLoadingTime);
-    }
-    
-    // Simulate gradual progress in case of stalls
-    const progressInterval = setInterval(() => {
-      if (loadingProgress < 0.95 && isLoading) {
-        setLoadingProgress((prev) => Math.min(prev + 0.05, 0.95));
+      // Start loading process if there are assets to load
+      if (assetsToPreload.length > 0) {
+        try {
+          for (const asset of assetsToPreload) {
+            if (asset.endsWith('.mp4')) {
+              await loadVideo(asset);
+            } else {
+              // For any other type, just mark as loaded
+              console.log(`Skipping preload for: ${asset}`);
+              updateProgress();
+            }
+          }
+        } catch (error) {
+          console.error("Error in asset loading process:", error);
+          setIsLoading(false);
+        }
+      } else {
+        // If no assets to load, show loading screen briefly then fade out
+        const minLoadingTime = setTimeout(() => {
+          setIsLoading(false);
+        }, 2000);
+        
+        return () => clearTimeout(minLoadingTime);
       }
-    }, 1000);
-    
-    // Always hide loading screen after maximum time
-    const maxLoadingTime = setTimeout(() => {
-      setIsLoading(false);
-    }, 6000);
-    
-    return () => {
-      clearInterval(progressInterval);
-      clearTimeout(maxLoadingTime);
+      
+      // Simulate gradual progress in case of stalls
+      const progressInterval = setInterval(() => {
+        if (loadingProgress < 0.95 && isLoading) {
+          setLoadingProgress((prev) => Math.min(prev + 0.05, 0.95));
+        }
+      }, 1000);
+      
+      // Always hide loading screen after maximum time
+      const maxLoadingTime = setTimeout(() => {
+        setIsLoading(false);
+      }, 6000);
+      
+      return () => {
+        clearInterval(progressInterval);
+        clearTimeout(maxLoadingTime);
+      };
     };
+
+    prefetchResources();
   }, [isLoading, loadingProgress]);
   
   // Force render after component mount to ensure overlay is visible

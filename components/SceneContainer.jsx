@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import SimpleScrollySceneWrapper from './SimpleScrollySceneWrapper';
 import { ScrollContext } from './SimpleScrollyControls';
 import SceneContent from './SceneContent';
@@ -40,6 +40,8 @@ export default function SceneContainer() {
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.currentTime = 0; // Start from beginning
+        console.log("Setting source to forward video:", "/rockanimation_v2.mp4");
+        videoRef.current.src = "/rockanimation_v2.mp4"; // Ensure we use the forward animation
         
         // Apply fast playback
         try {
@@ -73,7 +75,9 @@ export default function SceneContainer() {
           
           // Handle autoplay restrictions
           if (playPromise !== undefined) {
-            playPromise.catch(error => {
+            playPromise.then(() => {
+              console.log("Forward video play started successfully");
+            }).catch(error => {
               console.error("Video play was prevented:", error);
               // Fall back to showing the second scene directly
               handleVideoEnded();
@@ -87,34 +91,6 @@ export default function SceneContainer() {
     }, 200);
   };
   
-  // Handle video ended event
-  const handleVideoEnded = () => {
-    console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
-    setVideoFinished(true);
-    
-    // Check if this is a reverse transition
-    if (isReverseTransition) {
-      handleReverseVideoEnded();
-      return;
-    }
-    
-    // Set phase to transitioning to the rock scene
-    setTransitionPhase(3);
-    
-    // After a short delay, show the second scene
-    setTimeout(() => {
-      setShowSecondScene(true);
-      console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
-      
-      // After another short delay, hide the video overlay
-      setTimeout(() => {
-        setIsTransitioning(false);
-        setVideoFinished(false);
-        setTransitionPhase(0);
-      }, 800);
-    }, 500);
-  };
-  
   // New function to handle reverse transition (from rock line back to original scene)
   const handleReverseTransition = () => {
     console.log("%c 🔄 REVERSE TRANSITION TRIGGERED! 🔄", "background: #FF5722; color: white; font-size: 20px; padding: 10px;");
@@ -124,45 +100,27 @@ export default function SceneContainer() {
     setIsTransitioning(true);
     setTransitionPhase(2); // Start immediately at phase 2 for reverse transition
     
-    // Start video playback in reverse
+    // Start video playback of the reverse video
     setTimeout(() => {
       if (videoRef.current) {
-        // Set video to the end and play in reverse
         try {
-          videoRef.current.currentTime = videoRef.current.duration;
+          // Instead of playing the regular video in reverse, use the reversed version
+          console.log("Setting source to reversed video:", "/rockanimation_v2_reversed.mp4");
+          videoRef.current.src = "/rockanimation_v2_reversed.mp4";
+          videoRef.current.currentTime = 0; // Start from beginning
           
-          // Apply fast reverse playback
-          videoRef.current.defaultPlaybackRate = -2.0; // Set default rate
-          videoRef.current.playbackRate = -2.0; // Set current rate
-          console.log("Set reverse playback rate to:", videoRef.current.playbackRate);
-          
-          // Register listener to ensure playback rate is maintained
-          const ensurePlaybackRate = () => {
-            if (videoRef.current && videoRef.current.playbackRate !== -2.0) {
-              videoRef.current.playbackRate = -2.0;
-              console.log("Corrected reverse playback rate to:", videoRef.current.playbackRate);
-            }
-          };
-          
-          // Apply rate again when video is ready to play
-          videoRef.current.addEventListener('canplay', ensurePlaybackRate, { once: true });
-          
-          // Check and fix rate periodically during playback
-          const timeUpdateHandler = () => {
-            ensurePlaybackRate();
-          };
-          videoRef.current.addEventListener('timeupdate', timeUpdateHandler);
-          
-          // Clean up listener when video ends
-          videoRef.current.addEventListener('ended', () => {
-            videoRef.current.removeEventListener('timeupdate', timeUpdateHandler);
-          }, { once: true });
+          // Use normal forward playback for the reversed video
+          videoRef.current.defaultPlaybackRate = 2.0; // Set default rate
+          videoRef.current.playbackRate = 2.0; // Set current rate
+          console.log("Playing reversed animation video at playback rate:", videoRef.current.playbackRate);
           
           const playPromise = videoRef.current.play();
           
           // Handle autoplay restrictions
           if (playPromise !== undefined) {
-            playPromise.catch(error => {
+            playPromise.then(() => {
+              console.log("Reversed video play started successfully");
+            }).catch(error => {
               console.error("Reverse video play was prevented:", error);
               // Fall back to direct scene switch
               handleReverseVideoEnded();
@@ -177,6 +135,29 @@ export default function SceneContainer() {
         handleReverseVideoEnded();
       }
     }, 100);
+  };
+  
+  // Handle video ended event
+  const handleVideoEnded = () => {
+    console.log("%c 🎬 VIDEO ENDED! 🎬", "background: #FF9800; color: white; font-size: 20px; padding: 10px;");
+    setVideoFinished(true);
+    
+    // Check if this is a reverse transition
+    if (isReverseTransition) {
+      handleReverseVideoEnded();
+      return;
+    }
+    
+    // Switch to second scene after video ends
+    setShowSecondScene(true);
+    console.log("%c ✨ SECOND SCENE ACTIVATED! ✨", "background: #2196F3; color: white; font-size: 20px; padding: 10px;");
+    
+    // After a short delay, hide the video overlay
+    setTimeout(() => {
+      setIsTransitioning(false);
+      setVideoFinished(false);
+      setTransitionPhase(0);
+    }, 300);
   };
   
   // New function to handle when reverse video ends
@@ -266,25 +247,33 @@ export default function SceneContainer() {
         >
           <video
             ref={videoRef}
-            src="/rockanimation.mp4"
             style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover', // Cover the entire screen
-              opacity: transitionPhase === 1 ? 0 : 
-                     (transitionPhase === 3 ? 0.3 : // Mostly transparent during final transition
-                     (videoFinished ? 0 : 1)),
+              opacity: transitionPhase === 1 ? 0 : (videoFinished ? 0 : 1),
               transition: 'opacity 1s ease-in-out',
             }}
             onEnded={handleVideoEnded}
             onLoadedMetadata={(e) => {
               // Attempt to set playback rate once metadata is loaded
               try {
-                const targetRate = isReverseTransition ? -2.0 : 2.0;
-                e.target.playbackRate = targetRate;
-                console.log(`Setting playback rate on metadata load to: ${targetRate}`, e.target.playbackRate);
+                // Always use positive playback rate since we're using pre-reversed video
+                e.target.playbackRate = 2.0;
+                console.log(`Setting playback rate on metadata load to: 2.0`, e.target.playbackRate);
               } catch (err) {
                 console.warn("Browser may have limitations on playback speed:", err);
+              }
+            }}
+            onError={(e) => {
+              console.error("Video error occurred:", e.target.error);
+              console.error("Current video source:", e.target.src);
+              
+              // Attempt recovery by falling back to scene transition without video
+              if (isReverseTransition) {
+                handleReverseVideoEnded();
+              } else {
+                handleVideoEnded();
               }
             }}
             onTimeUpdate={(e) => {
@@ -304,16 +293,7 @@ export default function SceneContainer() {
 
       {/* Second scene - shown when transition is triggered */}
       {showSecondScene && (
-        <div 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            width: '100%', 
-            height: '100%',
-            opacity: 1,
-            transition: 'opacity 1s ease-in-out',
-          }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
           <Canvas
             style={{ width: '100%', height: '100%' }}
             camera={{ position: [0, 0, 6], fov: 45 }}
@@ -331,10 +311,7 @@ export default function SceneContainer() {
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} intensity={0.8} />
             <directionalLight position={[-5, 3, -5]} intensity={0.4} />
-            <RockLineScene 
-              onRockClick={handleReverseTransition}
-              showConnectingLines={isTransitioning && transitionPhase === 3}
-            />
+            <RockLineScene onRockClick={handleReverseTransition} />
           </Canvas>
         </div>
       )}

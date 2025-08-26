@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState, Suspense, useMemo } from 'react';
+import React, { useRef, useEffect, useState, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useGLTF, Html, MeshDistortMaterial } from '@react-three/drei';
+import { useGLTF, Html, MeshDistortMaterial, Text } from '@react-three/drei';
 
 // Interface for RockSpotlight component props
 interface RockSpotlightProps {
@@ -307,14 +307,267 @@ const SimplifiedRock = ({ position, scale, rotation, onClick, isAnyHovered = fal
   );
 };
 
+// Interface for BackArrowWithHover component props
+interface BackArrowWithHoverProps {
+  onArrowClick?: () => void;
+}
+
+// Create a new component for the back arrow with 3D hover detection
+const BackArrowWithHover = ({ onArrowClick }: BackArrowWithHoverProps) => {
+  const { camera } = useThree();
+  const arrowMeshRef = useRef<THREE.Mesh>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const mouse = useRef(new THREE.Vector2(-1000, -1000));
+  const raycaster = useRef(new THREE.Raycaster());
+  
+  // Set up mouse tracking
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      // Calculate mouse position in normalized device coordinates
+      mouse.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+  
+  // Handle click events
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (!arrowMeshRef.current) return;
+      
+      // Update the raycaster
+      raycaster.current.setFromCamera(mouse.current, camera);
+      
+      // Check for intersections
+      const intersects = raycaster.current.intersectObject(arrowMeshRef.current);
+      
+      if (intersects.length > 0) {
+        console.log("3D Back arrow clicked!");
+        if (onArrowClick) {
+          onArrowClick();
+        }
+      }
+    };
+    
+    window.addEventListener('click', handleClick);
+    
+    return () => {
+      window.removeEventListener('click', handleClick);
+    };
+  }, [camera, onArrowClick]);
+  
+  // Check for hover intersections every frame
+  useFrame(() => {
+    if (!arrowMeshRef.current) return;
+    
+    // Update the raycaster
+    raycaster.current.setFromCamera(mouse.current, camera);
+    
+    // Check for intersections
+    const intersects = raycaster.current.intersectObject(arrowMeshRef.current);
+    
+    // Update hover state based on intersections
+    const wasHovered = isHovered;
+    const nowHovered = intersects.length > 0;
+    
+    if (wasHovered !== nowHovered) {
+      setIsHovered(nowHovered);
+      
+      // Update cursor style
+      document.body.style.cursor = nowHovered ? 'pointer' : 'default';
+      
+      if (nowHovered) {
+        console.log("3D Back arrow hover start");
+      } else {
+        console.log("3D Back arrow hover end");
+      }
+    }
+  });
+  
+  return (
+    <group position={[-3.5, 0, 0]}>
+      {/* Invisible mesh for raycasting intersection */}
+      <mesh 
+        ref={arrowMeshRef}
+        position={[0, 0, 0.1]} // Slightly forward to ensure it's detectable
+        scale={[1, 1, 0.1]} // Thin in z-direction to be more like a plane
+      >
+        <boxGeometry args={[0.8, 0.8, 0.1]} />
+        <meshBasicMaterial 
+          color="red" 
+          transparent={true} 
+          opacity={process.env.NODE_ENV === 'development' ? 0.1 : 0} 
+          depthWrite={false}
+        />
+      </mesh>
+      
+      {/* Actual HTML/SVG arrow overlay */}
+      <Html position={[-1, -0.2, 0]} transform distanceFactor={1.5}>
+        <div style={{
+          width: '80px',
+          height: '80px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none', // Set to none since we handle events in 3D space
+          overflow: 'visible' // Ensure nothing gets clipped
+        }}>
+          <svg width="100%" height="100%" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Gradient definitions */}
+            <defs>
+              <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#80EEFF" />
+                <stop offset="100%" stopColor="#8088FF" />
+              </linearGradient>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+            
+            {/* Debug indicator for hover area - only visible in development */}
+            {process.env.NODE_ENV === 'development' && (
+              <rect x="0" y="0" width="80" height="80" fill="rgba(255,0,0,0.1)" stroke="red" strokeWidth="1" />
+            )}
+            
+            {/* Animated surrounding lines */}
+            <path 
+              className="animated-line" 
+              d="M10,20 Q15,15 20,20" 
+              stroke="url(#arrowGradient)" 
+              strokeWidth="1" 
+              strokeLinecap="round" 
+              strokeDasharray="300" 
+              strokeDashoffset={isHovered ? "0" : "300"} 
+              style={{transition: 'all 0.6s ease', opacity: isHovered ? 1 : 0.4}}
+            />
+            <path 
+              className="animated-line" 
+              d="M10,60 Q15,65 20,60" 
+              stroke="url(#arrowGradient)" 
+              strokeWidth="1" 
+              strokeLinecap="round" 
+              strokeDasharray="300" 
+              strokeDashoffset={isHovered ? "0" : "300"} 
+              style={{transition: 'all 0.6s ease', opacity: isHovered ? 1 : 0.4}}
+            />
+            <path 
+              className="animated-line" 
+              d="M65,20 Q70,15 75,20" 
+              stroke="url(#arrowGradient)" 
+              strokeWidth="1" 
+              strokeLinecap="round" 
+              strokeDasharray="300" 
+              strokeDashoffset={isHovered ? "0" : "300"} 
+              style={{transition: 'all 0.6s ease', opacity: isHovered ? 1 : 0.4}}
+            />
+            <path 
+              className="animated-line" 
+              d="M65,60 Q70,65 75,60" 
+              stroke="url(#arrowGradient)" 
+              strokeWidth="1" 
+              strokeLinecap="round" 
+              strokeDasharray="300" 
+              strokeDashoffset={isHovered ? "0" : "300"} 
+              style={{transition: 'all 0.6s ease', opacity: isHovered ? 1 : 0.4}}
+            />
+            
+            {/* Decorative nodes */}
+            <circle 
+              className="node" 
+              cx="10" 
+              cy="20" 
+              r="2" 
+              fill="#80EEFF" 
+              style={{
+                transition: 'all 0.3s ease', 
+                opacity: isHovered ? 1 : 0.3, 
+                transform: isHovered ? 'scale(1)' : 'scale(0.8)', 
+                transformOrigin: 'center'
+              }} 
+            />
+            <circle 
+              className="node" 
+              cx="10" 
+              cy="60" 
+              r="2" 
+              fill="#80EEFF" 
+              style={{
+                transition: 'all 0.3s ease', 
+                opacity: isHovered ? 1 : 0.3, 
+                transform: isHovered ? 'scale(1)' : 'scale(0.8)', 
+                transformOrigin: 'center'
+              }} 
+            />
+            <circle 
+              className="node" 
+              cx="75" 
+              cy="20" 
+              r="2" 
+              fill="#8088FF" 
+              style={{
+                transition: 'all 0.3s ease', 
+                opacity: isHovered ? 1 : 0.3, 
+                transform: isHovered ? 'scale(1)' : 'scale(0.8)', 
+                transformOrigin: 'center'
+              }} 
+            />
+            <circle 
+              className="node" 
+              cx="75" 
+              cy="60" 
+              r="2" 
+              fill="#8088FF" 
+              style={{
+                transition: 'all 0.3s ease', 
+                opacity: isHovered ? 1 : 0.3, 
+                transform: isHovered ? 'scale(1)' : 'scale(0.8)', 
+                transformOrigin: 'center'
+              }} 
+            />
+            
+            {/* Arrow wrapper */}
+            <g 
+              className="arrow-wrapper" 
+              style={{
+                transition: 'all 0.3s ease', 
+                filter: isHovered ? 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.8))' : 'drop-shadow(0 0 0px rgba(255, 255, 255, 0))',
+                transform: isHovered ? 'scale(1.1)' : 'scale(1)'
+              }}
+            >
+              {/* Arrow background for glow effect */}
+              <circle cx="40" cy="40" r="22" fill="rgba(128, 238, 255, 0.1)" />
+              <circle cx="40" cy="40" r="20" fill="rgba(128, 136, 255, 0.05)" />
+              
+              {/* Arrow with gradient */}
+              <path 
+                d="M50 25L35 40L50 55" 
+                stroke="url(#arrowGradient)" 
+                strokeWidth="3" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              />
+            </g>
+          </svg>
+        </div>
+      </Html>
+    </group>
+  );
+};
+
 // Interface for component props
 interface RockLineSceneProps {
   onRockClick?: () => void;
-  showConnectingLines?: boolean; // New prop to control connecting lines visibility
 }
 
 // Component for displaying the rock line scene
-const RockLineScene = ({ onRockClick, showConnectingLines = false }: RockLineSceneProps) => {
+const RockLineScene = ({ onRockClick }: RockLineSceneProps) => {
   const groupRef = useRef<THREE.Group>(null);
   const { camera } = useThree();
   const [isInitialized, setIsInitialized] = useState(false);
@@ -325,9 +578,6 @@ const RockLineScene = ({ onRockClick, showConnectingLines = false }: RockLineSce
     scale: number;
     rotation: [number, number, number];
   }>>([]);
-  
-  // Connecting lines reference
-  const connectingLinesRef = useRef<THREE.Group>(null);
   
   // Load the rock model with error handling
   const { scene: originalScene } = useGLTF('/fractured_rock.glb', true, undefined, 
@@ -402,73 +652,7 @@ const RockLineScene = ({ onRockClick, showConnectingLines = false }: RockLineSce
     }
   }, [camera, originalScene, isInitialized, loadError]);
   
-  // Animate the connecting lines when visible
-  useFrame(({ clock }) => {
-    if (connectingLinesRef.current && showConnectingLines) {
-      const t = clock.getElapsedTime();
-      
-      // Gently pulse the opacity of the lines
-      connectingLinesRef.current.children.forEach((child, i) => {
-        if (child instanceof THREE.Line) {
-          // @ts-ignore - material opacity exists on LineBasicMaterial
-          child.material.opacity = 0.3 + Math.sin(t * 2 + i * 0.5) * 0.2;
-          
-          // Make line grow from top to bottom
-          const progress = Math.min(1, (t % 3) / 1.5); // Repeat every 3 seconds
-          // @ts-ignore - geometry is a BufferGeometry
-          const positions = child.geometry.attributes.position.array;
-          const originalY = 5; // Starting Y position above the scene
-          
-          // Update the Y position of the starting point (top of the line)
-          // This creates an effect of the line growing down from the top
-          positions[1] = originalY - progress * (originalY - positions[4]); // Top point Y moves toward bottom point Y
-          // @ts-ignore - geometry is a BufferGeometry
-          child.geometry.attributes.position.needsUpdate = true;
-        }
-      });
-    }
-  });
-  
-  // Create connecting lines component
-  const ConnectingLines = () => {
-    const lines = useMemo(() => {
-      const linesGroup = new THREE.Group();
-      
-      if (rockData.length === 0) return linesGroup;
-      
-      // Create a line for each rock
-      rockData.forEach((rock, i) => {
-        // Create line geometry from above to rock position
-        const lineGeometry = new THREE.BufferGeometry();
-        
-        // Start from above the scene, end at rock position
-        const positions = new Float32Array([
-          rock.position[0], 5, rock.position[2], // Top point
-          rock.position[0], rock.position[1], rock.position[2] // Rock position
-        ]);
-        
-        lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        
-        // White, minimal line material with slight opacity
-        const lineMaterial = new THREE.LineBasicMaterial({ 
-          color: 0xffffff, 
-          opacity: 0.5, 
-          transparent: true,
-          depthTest: false, // Ensure lines are always visible
-        });
-        
-        // Create the line
-        const line = new THREE.Line(lineGeometry, lineMaterial);
-        linesGroup.add(line);
-      });
-      
-      return linesGroup;
-    }, [rockData]);
-    
-    return <primitive object={lines} ref={connectingLinesRef} />;
-  };
-  
-  // Render fallback rocks if there was an error loading the model
+  // If loadError show fallback rocks
   if (loadError) {
     return (
       <>
@@ -500,29 +684,12 @@ const RockLineScene = ({ onRockClick, showConnectingLines = false }: RockLineSce
           );
         })}
         
-        {/* Connecting lines */}
-        {showConnectingLines && <ConnectingLines />}
+        {/* Replace the HTML arrow with the 3D-aware one */}
+        <BackArrowWithHover onArrowClick={onRockClick} />
         
-        {/* Click instruction text */}
-        <Html center position={[0, 1.5, 0]}>
-          <div style={{ 
-            color: 'white', 
-            fontSize: '16px',
-            fontFamily: 'var(--font-courier-prime), monospace',
-            textAlign: 'center',
-            padding: '10px',
-            background: 'rgba(0,0,0,0.5)',
-            borderRadius: '5px',
-            pointerEvents: 'none'
-          }}>
-            Click a rock to return
-          </div>
-        </Html>
-        
-        {/* Dimmer ambient lighting */}
-        <ambientLight intensity={0.3} />
-        <directionalLight position={[5, 5, 5]} intensity={0.5} />
-        <directionalLight position={[-5, 3, -5]} intensity={0.3} />
+        {/* Very dim ambient lighting to make spotlights more visible */}
+        <ambientLight intensity={0.2} />
+        <directionalLight position={[5, 5, 5]} intensity={0.3} />
       </>
     );
   }
@@ -554,28 +721,12 @@ const RockLineScene = ({ onRockClick, showConnectingLines = false }: RockLineSce
         />
       ))}
       
-      {/* Connecting lines for transition */}
-      {showConnectingLines && isInitialized && <ConnectingLines />}
+      {/* Replace the HTML arrow with the 3D-aware one */}
+      <BackArrowWithHover onArrowClick={onRockClick} />
       
       {/* Very dim ambient lighting to make spotlights more visible */}
       <ambientLight intensity={0.15} />
       <directionalLight position={[5, 5, 5]} intensity={0.2} />
-      
-      {/* Click instruction text */}
-      <Html center position={[0, 1.5, 0]}>
-        <div style={{ 
-          color: 'white', 
-          fontSize: '16px',
-          fontFamily: 'var(--font-courier-prime), monospace',
-          textAlign: 'center',
-          padding: '10px',
-          background: 'rgba(0,0,0,0.5)',
-          borderRadius: '5px',
-          pointerEvents: 'none'
-        }}>
-          Click a rock to return
-        </div>
-      </Html>
     </Suspense>
   );
 };

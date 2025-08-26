@@ -16,7 +16,7 @@
     "@11labs/client": "^0.0.8",
     "@11labs/react": "^0.0.8",
     "@react-spring/three": "^9.7.5",
-    "@react-three/drei": "^10.0.4",
+    "@react-three/drei": "^10.0.5",
     "@react-three/fiber": "^9.1.0",
     "@react-three/postprocessing": "^3.0.4",
     "axios": "^1.8.4",
